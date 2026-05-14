@@ -24,7 +24,7 @@ services:
       POSTGRES_PASSWORD: app_pass
       POSTGRES_DB: debug_ui
     ports:
-      - "5433:5432"
+      - "5436:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
