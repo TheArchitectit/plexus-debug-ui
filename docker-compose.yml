@@ -4,7 +4,7 @@ services:
     ports:
       - "4002:4002"
     environment:
-      - PLEXUS_DATABASE_URL=postgresql://plexus:plexus_pass@host.docker.internal:5435/plexus
+      - PLEXUS_DATABASE_URL=${PLEXUS_DATABASE_URL}
       - APP_DATABASE_URL=postgresql://app:app_pass@db:5432/debug_ui
       - ADMIN_KEY_FILE=/app/config/plexus.yaml
       - PORT=4002
