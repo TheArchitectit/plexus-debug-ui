@@ -49,13 +49,13 @@ export async function createDebugBundle(requests, outPath) {
       const rawRespSize = req.raw_response?.length || 0;
 
       if (rawReqSize > 0 && rawReqSize < MAX_INLINE_SIZE) {
-        archive.append(req.raw_request, { name: `${base}_request.json` });
+        archive.append(req.raw_request, { name: `raw/${req.request_id}_request.json` });
       } else if (rawReqSize > 0) {
         manifest.warnings.push(`${req.request_id}: request payload too large (${rawReqSize} bytes)`);
       }
 
       if (rawRespSize > 0 && rawRespSize < MAX_INLINE_SIZE) {
-        archive.append(req.raw_response, { name: `${base}_response.json` });
+        archive.append(req.raw_response, { name: `raw/${req.request_id}_response.json` });
       } else if (rawRespSize > 0) {
         manifest.warnings.push(`${req.request_id}: response payload too large (${rawRespSize} bytes)`);
       }
