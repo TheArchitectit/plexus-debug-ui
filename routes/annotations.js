@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { queryApp } from '../db/app.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { requireAuth } from '../middleware/auth.js';
 
+const DEFAULT_USER = 'admin';
 const router = Router();
+
+router.use(requireAuth);
 
 router.get('/', asyncHandler(async (req, res) => {
   const { requestId, tag } = req.query;
@@ -33,7 +37,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const [row] = await queryApp(
     `INSERT INTO request_annotations (request_id, tag, note, created_by) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [requestId, tag || null, note || null, 'admin']
+    [requestId, tag || null, note || null, DEFAULT_USER]
   );
   res.status(201).json(row);
 }));

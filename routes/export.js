@@ -6,9 +6,13 @@ import { queryApp } from '../db/app.js';
 import { createDebugBundle } from '../services/zipExporter.js';
 import { extractToolCalls } from '../services/toolParser.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
+import { requireAuth } from '../middleware/auth.js';
 import { config } from '../config.js';
 
+const DEFAULT_USER = 'admin';
 const router = Router();
+
+router.use(requireAuth);
 
 router.post('/', asyncHandler(async (req, res) => {
   const { requestIds, sessionName } = req.body;
@@ -41,7 +45,7 @@ router.post('/', asyncHandler(async (req, res) => {
 
   const [session] = await queryApp(
     `INSERT INTO debug_sessions (name, filters, created_by) VALUES ($1, $2, $3) RETURNING id`,
-    [sessionName || `Export ${new Date().toISOString()}`, JSON.stringify({ requestIds }), 'admin']
+    [sessionName || `Export ${new Date().toISOString()}`, JSON.stringify({ requestIds }), DEFAULT_USER]
   );
 
   await queryApp(
