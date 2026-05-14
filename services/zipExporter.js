@@ -4,6 +4,10 @@ import archiver from 'archiver';
 
 const MAX_INLINE_SIZE = 5 * 1024 * 1024;
 
+function sanitizeId(id) {
+  return id.replace(/[\/\\]/g, '_').replace(/\.\./g, '_');
+}
+
 export async function createDebugBundle(requests, outPath) {
   const dir = path.dirname(outPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -13,9 +17,10 @@ export async function createDebugBundle(requests, outPath) {
 
   await new Promise((resolve, reject) => {
     output.on('close', resolve);
+    output.on('error', reject);
     archive.on('error', reject);
     archive.on('warning', (err) => {
-      if (err.code !== 'ENOENT') throw err;
+      if (err.code !== 'ENOENT') reject(err);
     });
     archive.pipe(output);
 
@@ -35,7 +40,8 @@ export async function createDebugBundle(requests, outPath) {
     archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
 
     for (const req of requests) {
-      const base = `requests/${req.request_id}`;
+      const safeId = sanitizeId(req.request_id);
+      const base = `requests/${safeId}`;
       const summary = {
         request_id: req.request_id,
         provider: req.provider,
@@ -49,19 +55,19 @@ export async function createDebugBundle(requests, outPath) {
       const rawRespSize = req.raw_response?.length || 0;
 
       if (rawReqSize > 0 && rawReqSize < MAX_INLINE_SIZE) {
-        archive.append(req.raw_request, { name: `raw/${req.request_id}_request.json` });
+        archive.append(req.raw_request, { name: `raw/${safeId}_request.json` });
       } else if (rawReqSize > 0) {
         manifest.warnings.push(`${req.request_id}: request payload too large (${rawReqSize} bytes)`);
       }
 
       if (rawRespSize > 0 && rawRespSize < MAX_INLINE_SIZE) {
-        archive.append(req.raw_response, { name: `raw/${req.request_id}_response.json` });
+        archive.append(req.raw_response, { name: `raw/${safeId}_response.json` });
       } else if (rawRespSize > 0) {
         manifest.warnings.push(`${req.request_id}: response payload too large (${rawRespSize} bytes)`);
       }
 
       if (req.error) {
-        archive.append(JSON.stringify(req.error, null, 2), { name: `errors/${req.request_id}_error.json` });
+        archive.append(JSON.stringify(req.error, null, 2), { name: `errors/${safeId}_error.json` });
       }
     }
 
