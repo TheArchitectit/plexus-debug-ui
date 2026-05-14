@@ -9,17 +9,21 @@ function formatBytes(b) {
 export default function ExportHistory() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    exportApi.history().then((res) => {
-      setRows(res.data);
-      setLoading(false);
-    });
+    let ignore = false;
+    exportApi.history()
+      .then((res) => { if (!ignore) setRows(res.data); })
+      .catch((err) => { if (!ignore) setError(err.message); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
   }, []);
 
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <h2 className="text-lg font-bold mb-4">Export History</h2>
+      {error && <div role="alert" className="bg-red-100 text-red-800 p-2 rounded text-sm mb-3">{error}</div>}
       {loading && <div className="text-slate-500">Loading...</div>}
       {!loading && rows.length === 0 && <div className="text-slate-500">No exports yet.</div>}
       <table className="w-full text-sm">

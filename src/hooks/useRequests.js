@@ -7,6 +7,7 @@ export function useRequests(filters) {
   const [error, setError] = useState(null);
   const [cursor, setCursor] = useState(null);
   const filtersRef = useRef(filters);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     filtersRef.current = filters;
@@ -17,17 +18,20 @@ export function useRequests(filters) {
   }, [JSON.stringify(filters)]);
 
   const fetch = useCallback(async (reset = false) => {
+    const reqId = ++requestIdRef.current;
     setLoading(true);
     try {
       const params = { ...filtersRef.current, limit: 50 };
       if (!reset && cursor) params.cursor = cursor;
       const res = await requestsApi.list(params);
+      if (reqId !== requestIdRef.current) return;
       setRows((prev) => (reset ? res.data : [...prev, ...res.data]));
       setCursor(res.nextCursor);
     } catch (err) {
+      if (reqId !== requestIdRef.current) return;
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (reqId === requestIdRef.current) setLoading(false);
     }
   }, [cursor]);
 

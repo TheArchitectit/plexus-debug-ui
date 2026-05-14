@@ -4,6 +4,16 @@ import { useAnnotations } from '../hooks/useAnnotations.js';
 
 const TABS = ['Summary', 'Raw Request', 'Raw Response', 'Errors', 'Annotations'];
 
+function safeJsonPrettify(str) {
+  if (!str) return '{}';
+  if (typeof str !== 'string') return JSON.stringify(str, null, 2);
+  try {
+    return JSON.stringify(JSON.parse(str), null, 2);
+  } catch {
+    return str;
+  }
+}
+
 export default function DetailDrawer({ requestId, onClose }) {
   const [tab, setTab] = useState('Summary');
   const { data, loading } = useDebug(requestId);
@@ -44,12 +54,12 @@ export default function DetailDrawer({ requestId, onClose }) {
         )}
         {!loading && tab === 'Raw Request' && (
           <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-[60vh]">
-            {JSON.stringify(JSON.parse(data?.debug?.raw_request || '{}'), null, 2)}
+            {safeJsonPrettify(data?.debug?.raw_request)}
           </pre>
         )}
         {!loading && tab === 'Raw Response' && (
           <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-[60vh]">
-            {JSON.stringify(JSON.parse(data?.debug?.raw_response || '{}'), null, 2)}
+            {safeJsonPrettify(data?.debug?.raw_response)}
           </pre>
         )}
         {!loading && tab === 'Errors' && (
