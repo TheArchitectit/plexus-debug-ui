@@ -31,7 +31,7 @@ export default function Dashboard() {
   return (
     <div>
       <FilterPanel onFilter={setFilters} />
-      {error && <div className="bg-red-100 text-red-800 p-3 rounded mb-4">{error}</div>}
+      {error && <div role="alert" className="bg-red-100 text-red-800 p-3 rounded mb-4">{error}</div>}
       <div className="flex justify-between items-center mb-2">
         <span className="text-sm text-slate-600">{rows.length} requests shown</span>
         <div className="flex gap-2">

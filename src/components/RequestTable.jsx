@@ -3,6 +3,7 @@ import React from 'react';
 function formatDate(ts) {
   if (!ts) return '-';
   const d = new Date(Number(ts));
+  if (isNaN(d.getTime())) return '-';
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
@@ -17,6 +18,7 @@ export default function RequestTable({ rows, selected, onSelect, onSelectAll, on
             <th className="px-3 py-2 text-left">
               <input
                 type="checkbox"
+                aria-label="Select all rows"
                 checked={allSelected}
                 onChange={(e) => onSelectAll(e.target.checked)}
               />
