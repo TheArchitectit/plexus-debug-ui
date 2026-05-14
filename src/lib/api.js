@@ -1,21 +1,28 @@
-const ADMIN_KEY = localStorage.getItem('plexusAdminKey') || '';
+function getAdminKey() {
+  return localStorage.getItem('plexusAdminKey') || '';
+}
 
 async function api(path, options = {}) {
   const url = path.startsWith('http') ? path : `/api${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ADMIN_KEY}`,
-      ...options.headers,
-    },
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAdminKey()}`,
+        ...options.headers,
+      },
+    });
+  } catch (networkErr) {
+    throw new Error(`Network error: ${networkErr.message}`);
+  }
 
-  if (res.status === 401) {
+  if (res.status === 401 && !options._retry) {
     const key = prompt('Enter admin key:');
     if (key) {
       localStorage.setItem('plexusAdminKey', key);
-      return api(path, options);
+      return api(path, { ...options, _retry: true });
     }
     throw new Error('Unauthorized');
   }
