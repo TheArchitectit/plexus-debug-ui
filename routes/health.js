@@ -23,6 +23,7 @@ router.get('/', async (req, res) => {
   }
 
   const status = plexusOk && appOk ? 200 : 503;
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate, proxy-revalidate');
   res.status(status).json({ status: plexusOk && appOk ? 'ok' : 'degraded', plexusDb: plexusOk, appDb: appOk });
 });
 
