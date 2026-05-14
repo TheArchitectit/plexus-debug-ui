@@ -1,0 +1,32 @@
+services:
+  plexus-debug-ui:
+    build: .
+    ports:
+      - "4002:4002"
+    environment:
+      - PLEXUS_DATABASE_URL=postgresql://plexus:plexus_pass@host.docker.internal:5435/plexus
+      - APP_DATABASE_URL=postgresql://app:app_pass@db:5432/debug_ui
+      - ADMIN_KEY_FILE=/app/config/plexus.yaml
+      - PORT=4002
+      - EXPORTS_DIR=/app/exports
+    volumes:
+      - /home/user001/plexus/plexus.yaml:/app/config/plexus.yaml:ro
+      - ./exports:/app/exports
+    depends_on:
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app_pass
+      POSTGRES_DB: debug_ui
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

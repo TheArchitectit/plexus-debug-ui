@@ -1,0 +1,35 @@
+{
+  "name": "plexus-debug-ui",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "server:dev": "nodemon server.js",
+    "client:dev": "vite",
+    "build": "vite build",
+    "start": "node server.js",
+    "test": "vitest run",
+    "migrate": "node db/migrate.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "pg": "^8.13.0",
+    "archiver": "^7.0.0",
+    "js-yaml": "^4.1.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.0",
+    "concurrently": "^9.0.0",
+    "jsdom": "^25.0.0",
+    "nodemon": "^3.1.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
+  }
+}
