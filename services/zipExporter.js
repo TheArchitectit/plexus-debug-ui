@@ -30,8 +30,8 @@ export async function createDebugBundle(requests, outPath) {
       requests: requests.map((r) => ({
         request_id: r.request_id,
         provider: r.provider,
-        model: r.model,
-        status: r.status,
+        model: r.canonical_model_name || r.incoming_model_alias,
+        status: r.response_status,
         hasError: !!r.error,
       })),
       warnings: [],
@@ -45,8 +45,8 @@ export async function createDebugBundle(requests, outPath) {
       const summary = {
         request_id: req.request_id,
         provider: req.provider,
-        model: req.model,
-        status: req.status,
+        model: req.canonical_model_name || req.incoming_model_alias,
+        status: req.response_status,
         created_at: req.created_at,
       };
       archive.append(JSON.stringify(summary, null, 2), { name: `${base}.json` });
@@ -81,6 +81,15 @@ export async function createDebugBundle(requests, outPath) {
   return { filePath: outPath, fileSize: stats.size, requestCount: requests.length };
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function generateReportHtml(requests) {
   const providerCounts = {};
   const errorCount = requests.filter((r) => r.error).length;
@@ -90,7 +99,7 @@ function generateReportHtml(requests) {
 
   let providerRows = '';
   for (const [p, c] of Object.entries(providerCounts)) {
-    providerRows += `<tr><td>${p}</td><td>${c}</td></tr>`;
+    providerRows += `<tr><td>${escapeHtml(p)}</td><td>${c}</td></tr>`;
   }
 
   return `<!DOCTYPE html>
@@ -98,7 +107,7 @@ function generateReportHtml(requests) {
 <style>body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;text-align:left}th{background:#f5f5f5}</style>
 </head><body>
 <h1>Plexus Debug Report</h1>
-<p>Generated: ${new Date().toISOString()}</p>
+<p>Generated: ${escapeHtml(new Date().toISOString())}</p>
 <p>Total requests: ${requests.length}</p>
 <p>Errors: ${errorCount}</p>
 <h2>Provider Breakdown</h2>

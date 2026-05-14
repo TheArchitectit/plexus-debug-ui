@@ -38,6 +38,8 @@ export function buildRequestsQuery(filters) {
   }
   if (filters.hasError === 'true') {
     conditions.push(`EXISTS (SELECT 1 FROM inference_errors e WHERE e.request_id = request_usage.request_id)`);
+  } else if (filters.hasError === 'false') {
+    conditions.push(`NOT EXISTS (SELECT 1 FROM inference_errors e WHERE e.request_id = request_usage.request_id)`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { exportApi } from '../lib/api.js';
+import { exportApi, downloadExport } from '../lib/api.js';
 
 export function useExport() {
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,7 @@ export function useExport() {
   }, []);
 
   const download = useCallback((exportId) => {
-    window.location.href = exportApi.download(exportId);
+    downloadExport(exportId);
   }, []);
 
   return { loading, result, error, create, download };

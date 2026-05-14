@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { exportApi } from '../lib/api.js';
+import { exportApi, downloadExport } from '../lib/api.js';
 
 function formatBytes(b) {
   if (!b) return '-';
@@ -44,12 +44,12 @@ export default function ExportHistory() {
               <td className="px-3 py-2">{formatBytes(row.file_size)}</td>
               <td className="px-3 py-2">{new Date(row.created_at).toLocaleString()}</td>
               <td className="px-3 py-2">
-                <a
+                <button
                   className="text-blue-600 hover:underline"
-                  href={`/api/export/${row.session_id}`}
+                  onClick={() => downloadExport(row.session_id)}
                 >
                   Download
-                </a>
+                </button>
               </td>
             </tr>
           ))}

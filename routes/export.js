@@ -19,6 +19,9 @@ router.post('/', asyncHandler(async (req, res) => {
   if (!Array.isArray(requestIds) || requestIds.length === 0) {
     return res.status(400).json({ error: 'requestIds array required' });
   }
+  if (requestIds.length > 1000) {
+    return res.status(400).json({ error: 'Maximum 1000 requests per export' });
+  }
 
   const placeholders = requestIds.map((_, i) => `$${i + 1}`).join(',');
   const requests = await queryPlexus(
@@ -64,6 +67,11 @@ router.get('/:exportId', asyncHandler(async (req, res) => {
   );
   if (!record || !fs.existsSync(record.file_path)) {
     return res.status(404).json({ error: 'Export not found' });
+  }
+  const resolvedPath = path.resolve(record.file_path);
+  const exportsDir = path.resolve(config.exportsDir);
+  if (!resolvedPath.startsWith(exportsDir)) {
+    return res.status(403).json({ error: 'Invalid file path' });
   }
   res.download(record.file_path);
 }));

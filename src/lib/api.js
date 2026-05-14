@@ -52,6 +52,20 @@ export const exportApi = {
   history: () => api('/export'),
 };
 
+export async function downloadExport(exportId) {
+  const res = await fetch(`/api/export/${exportId}`, {
+    headers: { 'Authorization': `Bearer ${getAdminKey()}` },
+  });
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `plexus-debug-${exportId}.zip`;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
 export const annotationsApi = {
   list: (params) => {
     const qs = new URLSearchParams(params).toString();
