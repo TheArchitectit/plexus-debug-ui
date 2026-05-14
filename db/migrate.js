@@ -56,11 +56,13 @@ async function migrate() {
     console.log('Migration complete');
   } catch (err) {
     console.error('Migration failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     client.release();
     await appPool.end();
   }
 }
 
-migrate();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  migrate();
+}
