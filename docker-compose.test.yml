@@ -1,0 +1,34 @@
+services:
+  plexus-debug-ui-test:
+    build: .
+    ports:
+      - "4003:4002"
+    environment:
+      - PLEXUS_API_URL=http://host.docker.internal:4001
+      - APP_DATABASE_URL=postgresql://app:${APP_DB_PASSWORD}@db:5432/debug_ui
+      - ADMIN_KEY_FILE=/app/config/plexus.yaml
+      - PORT=4002
+      - EXPORTS_DIR=/app/exports
+    volumes:
+      - ${PLEXUS_CONFIG_PATH:-./plexus.yaml}:/app/config/plexus.yaml:ro
+      - ./exports:/app/exports
+    depends_on:
+      - db
+    command: >
+      sh -c "node db/migrate.js && node server.js"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:-debug_ui_pass}
+      POSTGRES_DB: debug_ui
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

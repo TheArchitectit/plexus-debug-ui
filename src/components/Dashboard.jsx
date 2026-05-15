@@ -13,19 +13,6 @@ export default function Dashboard() {
 
   const { rows, loading, error, loadMore, hasMore } = useRequests(filters);
 
-  const onSelect = useCallback((id, checked) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
-
-  const onSelectAll = useCallback((checked) => {
-    setSelected(checked ? new Set(filteredRows.map((r) => r.request_id)) : new Set());
-  }, [filteredRows]);
-
   const filteredRows = useMemo(() => {
     const term = (filters.search || '').toLowerCase().trim();
     if (!term) return rows;
@@ -40,6 +27,19 @@ export default function Dashboard() {
   }, [rows, filters.search]);
 
   const selectedRows = filteredRows.filter((r) => selected.has(r.request_id));
+
+  const onSelect = useCallback((id, checked) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const onSelectAll = useCallback((checked) => {
+    setSelected(checked ? new Set(filteredRows.map((r) => r.request_id)) : new Set());
+  }, [filteredRows]);
 
   return (
     <div>
