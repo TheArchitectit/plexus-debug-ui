@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import FilterPanel from './FilterPanel.jsx';
 import RequestTable from './RequestTable.jsx';
 import DetailDrawer from './DetailDrawer.jsx';
@@ -23,17 +23,33 @@ export default function Dashboard() {
   }, []);
 
   const onSelectAll = useCallback((checked) => {
-    setSelected(checked ? new Set(rows.map((r) => r.request_id)) : new Set());
-  }, [rows]);
+    setSelected(checked ? new Set(filteredRows.map((r) => r.request_id)) : new Set());
+  }, [filteredRows]);
 
-  const selectedRows = rows.filter((r) => selected.has(r.request_id));
+  const filteredRows = useMemo(() => {
+    const term = (filters.search || '').toLowerCase().trim();
+    if (!term) return rows;
+    return rows.filter((r) =>
+      (r.request_id || '').toLowerCase().includes(term) ||
+      (r.provider || '').toLowerCase().includes(term) ||
+      (r.canonical_model_name || '').toLowerCase().includes(term) ||
+      (r.incoming_model_alias || '').toLowerCase().includes(term) ||
+      (r.api_key || '').toLowerCase().includes(term) ||
+      (r.finish_reason || '').toLowerCase().includes(term)
+    );
+  }, [rows, filters.search]);
+
+  const selectedRows = filteredRows.filter((r) => selected.has(r.request_id));
 
   return (
     <div>
       <FilterPanel onFilter={setFilters} />
       {error && <div role="alert" className="bg-red-100 text-red-800 p-3 rounded mb-4">{error}</div>}
       <div className="flex justify-between items-center mb-2">
-        <span className="text-sm text-slate-600">{rows.length} requests shown</span>
+        <span className="text-sm text-slate-600">
+          {filteredRows.length} requests shown
+          {filters.search && ` (filtered from ${rows.length})`}
+        </span>
         <div className="flex gap-2">
           <button
             className="bg-slate-900 text-white px-3 py-1 rounded text-sm hover:bg-slate-800 disabled:opacity-50"
@@ -53,7 +69,7 @@ export default function Dashboard() {
         </div>
       </div>
       <RequestTable
-        rows={rows}
+        rows={filteredRows}
         selected={selected}
         onSelect={onSelect}
         onSelectAll={onSelectAll}

@@ -13,6 +13,7 @@ export default function FilterPanel({ onFilter }) {
     hasError: '',
     hasRetry: '',
     finishReason: '',
+    search: '',
   });
   const [options, setOptions] = useState({ providers: [], models: [], apiKeys: [], finishReasons: [] });
 
@@ -32,8 +33,17 @@ export default function FilterPanel({ onFilter }) {
   }, [filters, onFilter]);
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-      <SearchableSelect
+    <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <div className="mb-3">
+        <input
+          className="border rounded px-3 py-2 w-full"
+          placeholder="Search request ID, provider, model, API key, error message..."
+          value={filters.search}
+          onChange={(e) => update('search', e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <SearchableSelect
         options={options.providers}
         value={filters.provider}
         onChange={(v) => update('provider', v)}
@@ -98,12 +108,13 @@ export default function FilterPanel({ onFilter }) {
           onChange={(e) => update('dateTo', e.target.value)}
         />
       </div>
-      <button
-        className="bg-slate-900 text-white rounded px-3 py-1 hover:bg-slate-800"
-        onClick={apply}
-      >
-        Apply Filters
-      </button>
+        <button
+          className="bg-slate-900 text-white rounded px-3 py-1 hover:bg-slate-800"
+          onClick={apply}
+        >
+          Apply Filters
+        </button>
+      </div>
     </div>
   );
 }
