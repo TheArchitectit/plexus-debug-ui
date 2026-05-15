@@ -41,6 +41,15 @@ export function buildRequestsQuery(filters) {
   } else if (filters.hasError === 'false') {
     conditions.push(`NOT EXISTS (SELECT 1 FROM inference_errors e WHERE e.request_id = request_usage.request_id)`);
   }
+  if (filters.hasRetry === 'true') {
+    conditions.push(`attempt_count > 1`);
+  } else if (filters.hasRetry === 'false') {
+    conditions.push(`attempt_count <= 1`);
+  }
+  if (filters.finishReason) {
+    conditions.push(`finish_reason = $${idx++}`);
+    params.push(filters.finishReason);
+  }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const cursorClause = filters.cursor
@@ -53,6 +62,7 @@ export function buildRequestsQuery(filters) {
     SELECT request_id, provider, incoming_model_alias, canonical_model_name, selected_model_name,
            api_key, response_status, tokens_input, tokens_output, duration_ms, created_at,
            tools_defined, tool_calls_count, message_count, finish_reason,
+           attempt_count, retry_history, final_attempt_provider, final_attempt_model, all_attempted_providers,
            (EXISTS (SELECT 1 FROM inference_errors e WHERE e.request_id = request_usage.request_id)) as has_error
     FROM request_usage
     ${where} ${cursorClause ? (where ? cursorClause.replace('AND', 'AND') : `WHERE ${cursorClause.replace('AND', '')}`) : ''}
@@ -73,6 +83,8 @@ router.get('/', asyncHandler(async (req, res) => {
     dateFrom: req.query.dateFrom,
     dateTo: req.query.dateTo,
     hasError: req.query.hasError,
+    hasRetry: req.query.hasRetry,
+    finishReason: req.query.finishReason,
     cursor: req.query.cursor,
     limit: req.query.limit,
   };

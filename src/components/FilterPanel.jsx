@@ -11,8 +11,10 @@ export default function FilterPanel({ onFilter }) {
     dateFrom: '',
     dateTo: '',
     hasError: '',
+    hasRetry: '',
+    finishReason: '',
   });
-  const [options, setOptions] = useState({ providers: [], models: [], apiKeys: [] });
+  const [options, setOptions] = useState({ providers: [], models: [], apiKeys: [], finishReasons: [] });
 
   useEffect(() => {
     filtersApi.list().then(setOptions).catch(() => {});
@@ -58,17 +60,20 @@ export default function FilterPanel({ onFilter }) {
         <option value="success">Success</option>
         <option value="error">Error</option>
       </select>
-      <input
-        type="date"
+      <select
         className="border rounded px-2 py-1"
-        value={filters.dateFrom}
-        onChange={(e) => update('dateFrom', e.target.value)}
-      />
-      <input
-        type="date"
-        className="border rounded px-2 py-1"
-        value={filters.dateTo}
-        onChange={(e) => update('dateTo', e.target.value)}
+        value={filters.hasRetry}
+        onChange={(e) => update('hasRetry', e.target.value)}
+      >
+        <option value="">Any retries</option>
+        <option value="true">Retried</option>
+        <option value="false">No retry</option>
+      </select>
+      <SearchableSelect
+        options={options.finishReasons}
+        value={filters.finishReason}
+        onChange={(v) => update('finishReason', v)}
+        placeholder="Finish Reason"
       />
       <select
         className="border rounded px-2 py-1"
@@ -79,6 +84,20 @@ export default function FilterPanel({ onFilter }) {
         <option value="true">Has error</option>
         <option value="false">No error</option>
       </select>
+      <div className="flex gap-2">
+        <input
+          type="date"
+          className="border rounded px-2 py-1 flex-1"
+          value={filters.dateFrom}
+          onChange={(e) => update('dateFrom', e.target.value)}
+        />
+        <input
+          type="date"
+          className="border rounded px-2 py-1 flex-1"
+          value={filters.dateTo}
+          onChange={(e) => update('dateTo', e.target.value)}
+        />
+      </div>
       <button
         className="bg-slate-900 text-white rounded px-3 py-1 hover:bg-slate-800"
         onClick={apply}

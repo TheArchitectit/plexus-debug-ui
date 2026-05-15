@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDebug } from '../hooks/useDebug.js';
 import { useAnnotations } from '../hooks/useAnnotations.js';
 
-const TABS = ['Summary', 'Raw Request', 'Raw Response', 'Errors', 'Annotations'];
+const TABS = ['Summary', 'Retries', 'Raw Request', 'Raw Response', 'Errors', 'Annotations'];
 
 function safeJsonPrettify(str) {
   if (!str) return '{}';
@@ -14,12 +14,70 @@ function safeJsonPrettify(str) {
   }
 }
 
+function RetryChain({ retryHistory, attemptCount, finalProvider, finalModel, allProviders }) {
+  if (!retryHistory) {
+    return <p className="text-slate-500">No retry data recorded.</p>;
+  }
+
+  let attempts = [];
+  try {
+    attempts = typeof retryHistory === 'string' ? JSON.parse(retryHistory) : retryHistory;
+  } catch {
+    return <p className="text-red-600">Could not parse retry history.</p>;
+  }
+
+  if (!Array.isArray(attempts) || attempts.length === 0) {
+    return <p className="text-slate-500">No retry data recorded.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-4 text-sm mb-3">
+        <span><strong>Total attempts:</strong> {attemptCount}</span>
+        <span><strong>Final provider:</strong> {finalProvider || '-'}</span>
+        <span><strong>Final model:</strong> {finalModel || '-'}</span>
+      </div>
+      {allProviders && (
+        <p className="text-xs text-slate-500"><strong>All attempted:</strong> {allProviders}</p>
+      )}
+      <div className="space-y-2">
+        {attempts.map((a, i) => (
+          <div
+            key={i}
+            className={`border rounded p-3 text-sm ${a.status === 'success' ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}`}
+          >
+            <div className="flex justify-between items-center mb-1">
+              <span className="font-semibold">Attempt {a.index || i + 1}</span>
+              <div className="flex gap-2">
+                <span className={`px-2 py-0.5 rounded text-xs ${a.status === 'success' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                  {a.status}
+                </span>
+                {a.retryable && (
+                  <span className="px-2 py-0.5 rounded text-xs bg-amber-200 text-amber-800">
+                    retryable
+                  </span>
+                )}
+              </div>
+            </div>
+            <p><strong>Provider:</strong> {a.provider} &nbsp; <strong>Model:</strong> {a.model}</p>
+            <p><strong>API type:</strong> {a.apiType || '-'}</p>
+            <p><strong>Reason:</strong> {a.reason || '-'}</p>
+            {a.statusCode && <p><strong>Status code:</strong> {a.statusCode}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DetailDrawer({ requestId, onClose }) {
   const [tab, setTab] = useState('Summary');
   const { data, loading } = useDebug(requestId);
   const { annotations, add, remove } = useAnnotations(requestId);
   const [tagInput, setTagInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
+
+  const u = data?.usage;
 
   return (
     <div className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-white shadow-2xl z-50 flex flex-col">
@@ -31,7 +89,7 @@ export default function DetailDrawer({ requestId, onClose }) {
         {TABS.map((t) => (
           <button
             key={t}
-            className={`flex-1 py-2 text-sm ${tab === t ? 'border-b-2 border-slate-900 font-semibold' : 'text-slate-500'}`}
+            className={`flex-1 py-2 text-sm whitespace-nowrap ${tab === t ? 'border-b-2 border-slate-900 font-semibold' : 'text-slate-500'}`}
             onClick={() => setTab(t)}
           >
             {t}
@@ -40,17 +98,30 @@ export default function DetailDrawer({ requestId, onClose }) {
       </div>
       <div className="flex-1 overflow-auto p-4">
         {loading && <div className="text-slate-500">Loading...</div>}
-        {!loading && tab === 'Summary' && data?.usage && (
+        {!loading && tab === 'Summary' && u && (
           <div className="space-y-2 text-sm">
-            <p><strong>Provider:</strong> {data.usage.provider}</p>
-            <p><strong>Model:</strong> {data.usage.canonical_model_name}</p>
-            <p><strong>Status:</strong> {data.usage.response_status}</p>
-            <p><strong>Input tokens:</strong> {data.usage.tokens_input}</p>
-            <p><strong>Output tokens:</strong> {data.usage.tokens_output}</p>
-            <p><strong>Duration:</strong> {data.usage.duration_ms}ms</p>
-            <p><strong>Attempt count:</strong> {data.usage.attempt_count}</p>
-            <p><strong>Finish reason:</strong> {data.usage.finish_reason}</p>
+            <p><strong>Provider:</strong> {u.provider}</p>
+            <p><strong>Model:</strong> {u.canonical_model_name}</p>
+            <p><strong>Selected model:</strong> {u.selected_model_name}</p>
+            <p><strong>Status:</strong> {u.response_status}</p>
+            <p><strong>Input tokens:</strong> {u.tokens_input}</p>
+            <p><strong>Output tokens:</strong> {u.tokens_output}</p>
+            <p><strong>Duration:</strong> {u.duration_ms}ms</p>
+            <p><strong>Attempt count:</strong> {u.attempt_count}</p>
+            <p><strong>Finish reason:</strong> {u.finish_reason}</p>
+            <p><strong>Tools defined:</strong> {u.tools_defined}</p>
+            <p><strong>Tool calls:</strong> {u.tool_calls_count}</p>
+            <p><strong>Message count:</strong> {u.message_count}</p>
           </div>
+        )}
+        {!loading && tab === 'Retries' && u && (
+          <RetryChain
+            retryHistory={u.retry_history}
+            attemptCount={u.attempt_count}
+            finalProvider={u.final_attempt_provider}
+            finalModel={u.final_attempt_model}
+            allProviders={u.all_attempted_providers}
+          />
         )}
         {!loading && tab === 'Raw Request' && (
           <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-[60vh]">
