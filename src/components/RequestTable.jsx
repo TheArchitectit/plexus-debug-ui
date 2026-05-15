@@ -28,7 +28,8 @@ export default function RequestTable({ rows, selected, onSelect, onSelectAll, on
             <th className="px-3 py-2 text-left">Model</th>
             <th className="px-3 py-2 text-left">API Key</th>
             <th className="px-3 py-2 text-left">Status</th>
-            <th className="px-3 py-2 text-right">Tokens</th>
+            <th className="px-3 py-2 text-right">Context</th>
+            <th className="px-3 py-2 text-right">Tools</th>
             <th className="px-3 py-2 text-right">Duration</th>
             <th className="px-3 py-2 text-left">Time</th>
           </tr>
@@ -56,7 +57,18 @@ export default function RequestTable({ rows, selected, onSelect, onSelectAll, on
                   {row.response_status}
                 </span>
               </td>
-              <td className="px-3 py-2 text-right">{(row.tokens_input || 0) + (row.tokens_output || 0)}</td>
+              <td className="px-3 py-2 text-right text-xs">
+                <span>{row.tokens_input || 0}</span>
+                <span className="text-slate-400">→</span>
+                <span>{row.tokens_output || 0}</span>
+              </td>
+              <td className="px-3 py-2 text-right text-xs">
+                {row.tool_calls_count > 0 ? (
+                  <span>{row.tool_calls_count}<span className="text-slate-400">/{row.tools_defined || 0}</span></span>
+                ) : (
+                  <span className="text-slate-300">-</span>
+                )}
+              </td>
               <td className="px-3 py-2 text-right">{row.duration_ms}ms</td>
               <td className="px-3 py-2 text-xs whitespace-nowrap">{formatDate(row.created_at)}</td>
             </tr>

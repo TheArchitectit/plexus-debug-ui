@@ -35,6 +35,10 @@ async function api(path, options = {}) {
   return res.json();
 }
 
+export const filtersApi = {
+  list: () => api('/filters'),
+};
+
 export const requestsApi = {
   list: (filters) => {
     const qs = new URLSearchParams(filters).toString();

@@ -52,6 +52,7 @@ export function buildRequestsQuery(filters) {
   const sql = `
     SELECT request_id, provider, incoming_model_alias, canonical_model_name, selected_model_name,
            api_key, response_status, tokens_input, tokens_output, duration_ms, created_at,
+           tools_defined, tool_calls_count, message_count, finish_reason,
            (EXISTS (SELECT 1 FROM inference_errors e WHERE e.request_id = request_usage.request_id)) as has_error
     FROM request_usage
     ${where} ${cursorClause ? (where ? cursorClause.replace('AND', 'AND') : `WHERE ${cursorClause.replace('AND', '')}`) : ''}

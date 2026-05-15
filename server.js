@@ -8,6 +8,7 @@ import requestsRouter from './routes/requests.js';
 import debugRouter from './routes/debug.js';
 import exportRouter from './routes/export.js';
 import annotationsRouter from './routes/annotations.js';
+import filtersRouter from './routes/filters.js';
 import healthRouter from './routes/health.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,6 +19,7 @@ app.use(express.json({ limit: '10mb' }));
 
 app.use('/health', healthRouter);
 app.use('/api', requireAuth);
+app.use('/api/filters', filtersRouter);
 app.use('/api/requests', requestsRouter);
 app.use('/api/debug', debugRouter);
 app.use('/api/export', exportRouter);

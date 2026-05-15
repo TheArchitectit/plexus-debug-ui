@@ -1,4 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import SearchableSelect from './SearchableSelect.jsx';
+import { filtersApi } from '../lib/api.js';
 
 export default function FilterPanel({ onFilter }) {
   const [filters, setFilters] = useState({
@@ -10,6 +12,11 @@ export default function FilterPanel({ onFilter }) {
     dateTo: '',
     hasError: '',
   });
+  const [options, setOptions] = useState({ providers: [], models: [], apiKeys: [] });
+
+  useEffect(() => {
+    filtersApi.list().then(setOptions).catch(() => {});
+  }, []);
 
   const update = useCallback((key, value) => {
     setFilters((f) => ({ ...f, [key]: value }));
@@ -24,23 +31,23 @@ export default function FilterPanel({ onFilter }) {
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-      <input
-        className="border rounded px-2 py-1"
-        placeholder="Provider"
+      <SearchableSelect
+        options={options.providers}
         value={filters.provider}
-        onChange={(e) => update('provider', e.target.value)}
+        onChange={(v) => update('provider', v)}
+        placeholder="Provider"
       />
-      <input
-        className="border rounded px-2 py-1"
-        placeholder="Model"
+      <SearchableSelect
+        options={options.models}
         value={filters.model}
-        onChange={(e) => update('model', e.target.value)}
+        onChange={(v) => update('model', v)}
+        placeholder="Model"
       />
-      <input
-        className="border rounded px-2 py-1"
-        placeholder="API Key"
+      <SearchableSelect
+        options={options.apiKeys}
         value={filters.apiKey}
-        onChange={(e) => update('apiKey', e.target.value)}
+        onChange={(v) => update('apiKey', v)}
+        placeholder="API Key"
       />
       <select
         className="border rounded px-2 py-1"
