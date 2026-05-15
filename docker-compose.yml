@@ -5,12 +5,12 @@ services:
       - "4002:4002"
     environment:
       - PLEXUS_DATABASE_URL=${PLEXUS_DATABASE_URL}
-      - APP_DATABASE_URL=postgresql://app:app_pass@db:5432/debug_ui
+      - APP_DATABASE_URL=postgresql://app:${APP_DB_PASSWORD}@db:5432/debug_ui
       - ADMIN_KEY_FILE=/app/config/plexus.yaml
       - PORT=4002
       - EXPORTS_DIR=/app/exports
     volumes:
-      - /home/user001/plexus/plexus.yaml:/app/config/plexus.yaml:ro
+      - ${PLEXUS_CONFIG_PATH:-./plexus.yaml}:/app/config/plexus.yaml:ro
       - ./exports:/app/exports
     depends_on:
       - db
@@ -23,7 +23,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: app
-      POSTGRES_PASSWORD: app_pass
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD:-debug_ui_pass}
       POSTGRES_DB: debug_ui
     ports:
       - "5436:5432"
