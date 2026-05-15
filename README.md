@@ -5,10 +5,14 @@ A containerized web application for inspecting and exporting debug bundles from 
 ## Features
 
 - **Live request filtering** — filter requests by provider, model, API key, status, date range, error presence, retries, and finish reason
+- **Keyword search** — free-text search across request ID, provider, model, API key, and finish reason fields
 - **Searchable dropdowns** — keyword-searchable selects populated with live distinct values from the Plexus API
-- **Request inspection** — click any row to open a detail drawer with raw request/response payloads, error details, retry chains, and annotations
+- **Context size and tools** — columns showing token context (`input → output`) and tool call counts (`calls/defined`)
+- **Retry detection** — amber-highlighted rows for retried requests with attempt count badges; filter by retry status
+- **Bad finish reasons** — red-highlighted rows for `error`, `length`, `max_tokens` finish reasons
+- **Request inspection** — click any row to open a detail drawer with tabs: Summary, Retries, Raw Request, Raw Response, Errors, Annotations
+- **Retry chain visualization** — the Retries tab shows each attempt's provider, model, status code, reason, and whether it was retryable
 - **Debug bundle export** — select multiple requests and generate a ZIP bundle with metadata, raw payloads, and an HTML overview report
-- **Retry chain visualization** — the Retries tab shows each attempt's provider, model, status, and whether it was retryable
 - **Annotations** — tag and note requests for later reference
 - **Export history** — track previously generated bundles
 
@@ -63,14 +67,55 @@ The UI will prompt for the admin key from `plexus.yaml`. It is stored in `localS
 
 The debug UI uses the Plexus management API instead of direct database queries. This ensures schema migrations in Plexus never break the debug UI.
 
-| Debug UI Feature | Plexus API Endpoint |
-|---|---|
-| Request list | `GET /v0/management/usage` |
-| Debug details | `GET /v0/management/debug/logs/:requestId` |
-| Errors | `GET /v0/management/errors` |
-| Performance | `GET /v0/management/performance` |
+| Debug UI Feature | Plexus API Endpoint | Auth |
+|---|---|---|
+| Request list + filters | `GET /v0/management/usage` | `x-admin-key` |
+| Debug details (raw payloads) | `GET /v0/management/debug/logs/:requestId` | `x-admin-key` |
+| Error records | `GET /v0/management/errors` | `x-admin-key` |
+| Provider performance | `GET /v0/management/performance` | `x-admin-key` |
 
-Auth is via the `x-admin-key` header, read from the `adminKey` field in `plexus.yaml`.
+The Plexus API returns camelCase field names (`requestId`, `toolCallsCount`, etc.). The `plexusApi.js` client normalizes these to snake_case for frontend compatibility.
+
+### Client-side filtering
+
+Some filters that the Plexus API does not support natively are applied client-side after fetching:
+
+| Filter | Implementation |
+|---|---|
+| `hasError` | Post-filter on `has_error` boolean field |
+| `hasRetry` | Post-filter on `attempt_count > 1` |
+| `search` | Free-text search across request_id, provider, model, api_key, finish_reason |
+
+## UI Views
+
+### Dashboard
+
+The main view with a search bar, filter panel, and paginated request table.
+
+**Table columns:** Request ID, Provider, Model, API Key, Status, Context (tokens in → out), Tools (calls/defined), Finish Reason, Duration, Time
+
+**Row highlights:**
+- Amber background — request was retried (attempt count badge shown)
+- Red background — bad finish reason (`error`, `length`, `max_tokens`)
+- Blue finish badge — tool call finish (`tool_calls`, `tool_use`)
+- Red finish badge — error/overflow finish (`error`, `length`, `max_tokens`)
+
+### Detail Drawer
+
+Slide-out panel with tabs:
+
+| Tab | Content |
+|-----|---------|
+| Summary | Provider, model, tokens, duration, attempt count, finish reason, tools, message count |
+| Retries | Full retry chain — each attempt's provider, model, status, status code, reason, retryable flag |
+| Raw Request | Pretty-printed raw request JSON |
+| Raw Response | Pretty-printed raw response JSON |
+| Errors | Error message, stack trace, and details from `inference_errors` |
+| Annotations | Tags and notes (stored in local DB) |
+
+### Export
+
+Select rows via checkboxes, then click "Export N selected" to generate a ZIP bundle. Export history tracks all past bundles with re-download links.
 
 ## Database Schema (Local)
 
@@ -112,6 +157,7 @@ plexus-debug-{timestamp}.zip
 - Admin key is the only auth mechanism (`Authorization: Bearer <key>` for debug UI, `x-admin-key` for Plexus API)
 - `plexus.yaml` is mounted read-only and never served to the frontend
 - ZIP files are stored on disk; export history tracks them but requires auth to download
+- Auth comparison uses HMAC-SHA256 with `crypto.timingSafeEqual` to prevent timing attacks
 
 ## Development
 
@@ -123,12 +169,39 @@ npm test         # Vitest (backend + frontend unit tests)
 
 ## Deployment
 
-The included `docker-compose.yml` is configured for local/development use. For production:
+The included `docker-compose.yml` is configured for local/development use. A `docker-compose.test.yml` is included for running a test instance on a separate port.
+
+For production:
 
 1. Use strong passwords (set via `.env`)
 2. Restrict network access to the Plexus API
 3. Run behind a reverse proxy with TLS
 4. Set `PLEXUS_CONFIG_PATH` to the absolute path of your `plexus.yaml`
+
+## Changelog
+
+### v0.2.0 — API Integration + Search + Retry Detection
+
+- Replaced direct PostgreSQL queries with Plexus management API (`/v0/management/*`)
+- Added `PLEXUS_API_URL` config (replaces `PLEXUS_DATABASE_URL`)
+- Added free-text keyword search across request fields
+- Added context size column (tokens in → out) and tools column (calls/defined)
+- Added retry detection: amber highlights, attempt count badges, "Retried" filter
+- Added finish reason filter and color-coded finish reason column
+- Added Retries tab in detail drawer showing full retry chain
+- Added `docker-compose.test.yml` for test deployments
+- Field normalization: Plexus API camelCase → snake_case for frontend
+
+### v0.1.0 — Initial Release
+
+- Dashboard with filterable, paginated request table
+- Searchable dropdown filters for provider, model, API key
+- Detail drawer with raw request/response, errors, annotations
+- ZIP debug bundle export with manifest and HTML report
+- Export history with re-download
+- Annotations (tags and notes)
+- Health check endpoint
+- Docker/Podman deployment
 
 ## License
 
