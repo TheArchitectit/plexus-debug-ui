@@ -29,7 +29,7 @@ function requireEnv(name) {
 
 export const config = {
   port: parseInt(process.env.PORT || '4002', 10),
-  plexusDbUrl: requireEnv('PLEXUS_DATABASE_URL'),
+  plexusApiUrl: process.env.PLEXUS_API_URL || 'http://host.docker.internal:4000',
   appDbUrl: requireEnv('APP_DATABASE_URL'),
   adminKey: loadAdminKey(),
   exportsDir: process.env.EXPORTS_DIR || './exports',

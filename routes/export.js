@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { queryPlexus } from '../db/plexus.js';
 import { queryApp } from '../db/app.js';
+import { plexusApi } from '../services/plexusApi.js';
 import { createDebugBundle } from '../services/zipExporter.js';
 import { extractToolCalls } from '../services/toolParser.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -23,28 +23,40 @@ router.post('/', asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Maximum 1000 requests per export' });
   }
 
-  const placeholders = requestIds.map((_, i) => `$${i + 1}`).join(',');
-  const requests = await queryPlexus(
-    `SELECT r.*, d.raw_request, d.raw_response, d.transformed_request, d.transformed_response,
-            e.error_message, e.error_stack, e.details as error_details
-     FROM request_usage r
-     LEFT JOIN debug_logs d ON d.request_id = r.request_id
-     LEFT JOIN inference_errors e ON e.request_id = r.request_id
-     WHERE r.request_id IN (${placeholders})`,
-    requestIds
+  const requests = await Promise.all(
+    requestIds.map(async (id) => {
+      try {
+        const [usage, debug, errors] = await Promise.all([
+          plexusApi.listUsage({ limit: '1' }).then((r) => r.data.find((u) => u.request_id === id)).catch(() => null),
+          plexusApi.getDebugLog(id).catch(() => null),
+          plexusApi.listErrors(id).catch(() => []),
+        ]);
+        if (!usage) return null;
+        const error = errors[0] || null;
+        return {
+          ...usage,
+          raw_request: debug?.raw_request,
+          raw_response: debug?.raw_response,
+          transformed_request: debug?.transformed_request,
+          transformed_response: debug?.transformed_response,
+          error_message: error?.error_message,
+          error_stack: error?.error_stack,
+          error_details: error?.details,
+          toolCalls: extractToolCalls(debug?.raw_request, debug?.raw_response),
+        };
+      } catch {
+        return null;
+      }
+    })
   );
 
-  const enriched = requests.map((r) => ({
-    ...r,
-    error: r.error_message ? { message: r.error_message, stack: r.error_stack, details: r.error_details } : null,
-    toolCalls: extractToolCalls(r.raw_request, r.raw_response),
-  }));
+  const valid = requests.filter(Boolean);
 
   const ts = Date.now();
   const fileName = `plexus-debug-${ts}.zip`;
   const outPath = path.join(config.exportsDir, fileName);
 
-  const bundle = await createDebugBundle(enriched, outPath);
+  const bundle = await createDebugBundle(valid, outPath);
 
   const [session] = await queryApp(
     `INSERT INTO debug_sessions (name, filters, created_by) VALUES ($1, $2, $3) RETURNING id`,
