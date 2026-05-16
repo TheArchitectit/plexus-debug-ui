@@ -101,6 +101,26 @@ export function extractToolCalls(rawRequest, rawResponse) {
     }
   }
 
+  // --- Second pass: annotate retry metadata ---
+  const nameCount = new Map();
+  const nameSeen = new Map();
+
+  // Count total occurrences of each tool_name
+  for (const call of calls) {
+    const name = call.tool_name;
+    nameCount.set(name, (nameCount.get(name) || 0) + 1);
+  }
+
+  // Assign attempt numbers and retry flags
+  for (const call of calls) {
+    const name = call.tool_name;
+    const seen = (nameSeen.get(name) || 0) + 1;
+    nameSeen.set(name, seen);
+    call.attempt = seen;
+    call.retry_count = nameCount.get(name);
+    call.is_retry = seen > 1;
+  }
+
   return calls;
 }
 
