@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useDebug } from '../hooks/useDebug.js';
 import { useAnnotations } from '../hooks/useAnnotations.js';
 
-const TABS = ['Summary', 'Retries', 'Raw Request', 'Raw Response', 'Errors', 'Annotations'];
+const TABS = ['Summary', 'Retries', 'Tool Calls', 'Raw Request', 'Raw Response', 'Errors', 'Annotations'];
 
 function safeJsonPrettify(str) {
   if (!str) return '{}';
@@ -27,8 +27,8 @@ function SearchablePre({ content }) {
   const matchCount = term ? filtered.length : 0;
 
   return (
-    <div>
-      <div className="flex gap-2 mb-2">
+    <div className="flex flex-col h-full">
+      <div className="flex gap-2 mb-2 shrink-0">
         <input
           className="border rounded px-2 py-1 text-sm flex-1"
           placeholder="Search in payload..."
@@ -37,9 +37,55 @@ function SearchablePre({ content }) {
         />
         {term && <span className="text-xs text-slate-500 self-center">{matchCount} lines match</span>}
       </div>
-      <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-[55vh]">
+      <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto flex-1 min-h-0">
         {filtered.join('\n')}
       </pre>
+    </div>
+  );
+}
+
+function ToolCallsPanel({ toolCalls }) {
+  if (!toolCalls || toolCalls.length === 0) {
+    return <p className="text-slate-500">No tool calls found.</p>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {toolCalls.map((tc, i) => (
+        <div key={tc.id || i} className="border rounded-lg overflow-hidden">
+          <div className="bg-slate-100 px-4 py-2 flex items-center gap-3">
+            <span className="font-mono font-semibold text-sm">{tc.tool_name}</span>
+            {tc.id && <span className="text-xs text-slate-500 font-mono">{tc.id}</span>}
+          </div>
+          <div className="p-4 space-y-3">
+            <div>
+              <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">Arguments</h4>
+              <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-48">
+                {typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments, null, 2)}
+              </pre>
+            </div>
+            {tc.result != null && (
+              <div>
+                <h4 className="text-xs font-semibold text-green-700 uppercase mb-1">Result</h4>
+                <pre className="text-xs bg-green-50 p-3 rounded overflow-auto max-h-48">
+                  {typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result, null, 2)}
+                </pre>
+              </div>
+            )}
+            {tc.error != null && (
+              <div>
+                <h4 className="text-xs font-semibold text-red-700 uppercase mb-1">Error</h4>
+                <pre className="text-xs bg-red-50 p-3 rounded overflow-auto max-h-48">
+                  {typeof tc.error === 'string' ? tc.error : JSON.stringify(tc.error, null, 2)}
+                </pre>
+              </div>
+            )}
+            {tc.result == null && tc.error == null && (
+              <p className="text-xs text-slate-400 italic">No result or error recorded.</p>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -110,15 +156,22 @@ export default function DetailDrawer({ requestId, onClose }) {
   const u = data?.usage;
   const rawReq = safeJsonPrettify(data?.debug?.raw_request);
   const rawRes = safeJsonPrettify(data?.debug?.raw_response);
+  const toolCalls = data?.toolCalls || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white shadow-2xl rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h2 className="font-bold font-mono text-sm">{requestId}</h2>
-          <button className="text-slate-500 hover:text-slate-900" onClick={onClose}>✕</button>
+    <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose}>
+      <div
+        className="bg-white flex flex-col h-full w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-3 border-b shrink-0">
+          <h2 className="font-bold font-mono text-sm truncate mr-4">{requestId}</h2>
+          <button className="text-slate-500 hover:text-slate-900 text-xl leading-none" onClick={onClose}>✕</button>
         </div>
-        <div className="flex border-b overflow-x-auto">
+
+        {/* Tab bar */}
+        <div className="flex border-b overflow-x-auto shrink-0">
           {TABS.map((t) => (
             <button
               key={t}
@@ -129,7 +182,9 @@ export default function DetailDrawer({ requestId, onClose }) {
             </button>
           ))}
         </div>
-        <div className="flex-1 overflow-auto p-4">
+
+        {/* Content area */}
+        <div className="flex-1 overflow-auto p-6 min-h-0">
           {loading && <div className="text-slate-500">Loading...</div>}
           {!loading && tab === 'Summary' && u && (
             <div className="space-y-2 text-sm">
@@ -155,6 +210,9 @@ export default function DetailDrawer({ requestId, onClose }) {
               finalModel={u.final_attempt_model}
               allProviders={u.all_attempted_providers}
             />
+          )}
+          {!loading && tab === 'Tool Calls' && (
+            <ToolCallsPanel toolCalls={toolCalls} />
           )}
           {!loading && tab === 'Raw Request' && (
             <SearchablePre content={rawReq} />

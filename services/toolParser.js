@@ -16,29 +16,88 @@ export function extractToolCalls(rawRequest, rawResponse) {
   if (!req || typeof req !== 'object') return calls;
   if (!resp || typeof resp !== 'object') return calls;
 
+  // --- OpenAI Chat Completion format ---
   const respChoices = resp.choices || [];
+  // Collect tool call id -> call mapping so we can match results later
+  const callById = new Map();
 
   for (const choice of respChoices) {
     const message = choice.message || {};
     const toolCalls = message.tool_calls || [];
     for (const tc of toolCalls) {
-      calls.push({
+      const call = {
+        id: tc.id || null,
         tool_name: tc.function?.name || 'unknown',
         arguments: safeParse(tc.function?.arguments),
         result: null,
         error: null,
-      });
+      };
+      calls.push(call);
+      if (call.id) callById.set(call.id, call);
     }
   }
 
+  // Match tool role messages (OpenAI Chat Completion results)
+  // Tool results can appear in request messages or in response choices with role='tool'
+  const allMessages = [
+    ...(req.messages || []),
+    ...respChoices.map((c) => c.message).filter(Boolean),
+  ];
+  for (const msg of allMessages) {
+    if (msg.role === 'tool' && msg.tool_call_id) {
+      const match = callById.get(msg.tool_call_id);
+      if (match) {
+        const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+        // Check if content looks like an error
+        const parsed = safeParse(content);
+        if (parsed && parsed.error && typeof parsed.error === 'string') {
+          match.error = parsed.error;
+        } else if (parsed && parsed.isError === true) {
+          match.error = content;
+        } else {
+          match.result = parsed && Object.keys(parsed).length ? parsed : content;
+        }
+      }
+    }
+  }
+
+  // --- Responses API format ---
   for (const item of resp.output || []) {
     if (item.type === 'function_call') {
-      calls.push({
+      const call = {
+        id: item.id || item.call_id || null,
         tool_name: item.name || 'unknown',
-        arguments: item.arguments || {},
+        arguments: safeParse(item.arguments),
         result: null,
         error: null,
-      });
+      };
+      calls.push(call);
+      if (call.id) callById.set(call.id, call);
+    }
+  }
+
+  // Match function_call_output items (Responses API results)
+  for (const item of resp.output || []) {
+    if (item.type === 'function_call_output' && item.call_id) {
+      const match = callById.get(item.call_id);
+      if (match) {
+        const content = typeof item.output === 'string' ? item.output : JSON.stringify(item.output);
+        const parsed = safeParse(content);
+        // Check for error indicators
+        if (item.is_error) {
+          match.error = content;
+        } else if (parsed && parsed.error && typeof parsed.error === 'string') {
+          match.error = parsed.error;
+        } else if (parsed && parsed.isError === true) {
+          match.error = content;
+        } else if (parsed && Object.keys(parsed).length > 0 && !parsed.raw) {
+          // Successfully parsed as a real JSON object
+          match.result = parsed;
+        } else {
+          // Plain string or unparseable content — store as-is
+          match.result = content;
+        }
+      }
     }
   }
 
@@ -47,6 +106,7 @@ export function extractToolCalls(rawRequest, rawResponse) {
 
 function safeParse(str) {
   if (!str) return {};
+  if (typeof str !== 'string') return {};
   try {
     const parsed = JSON.parse(str);
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
