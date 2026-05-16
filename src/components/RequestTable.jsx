@@ -97,7 +97,7 @@ export default function RequestTable({ rows, selected, onSelect, onSelectAll, on
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right">{row.duration_ms}ms</td>
-                <td className="px-3 py-2 text-xs whitespace-nowrap">{formatDate(row.created_at)}</td>
+                <td className="px-3 py-2 text-xs whitespace-nowrap">{formatDate(row.start_time || row.date)}</td>
               </tr>
             );
           })}

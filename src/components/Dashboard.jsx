@@ -58,6 +58,14 @@ export default function Dashboard() {
           >
             Export {selected.size} selected
           </button>
+          {filteredRows.length > 0 && selected.size !== filteredRows.length && (
+            <button
+              className="border border-slate-300 px-3 py-1 rounded text-sm hover:bg-slate-50"
+              onClick={() => { setSelected(new Set(filteredRows.map((r) => r.request_id))); setShowExport(true); }}
+            >
+              Export all {filteredRows.length}
+            </button>
+          )}
           {hasMore && (
             <button
               className="border border-slate-300 px-3 py-1 rounded text-sm hover:bg-slate-50"

@@ -2,20 +2,15 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 
 function loadAdminKey() {
-  const file = process.env.ADMIN_KEY_FILE || '/app/config/plexus.yaml';
+  const envKey = process.env.ADMIN_KEY;
+  if (envKey) return envKey;
+  const file = process.env.ADMIN_KEY_FILE;
+  if (!file) return null;
   try {
     const doc = yaml.load(fs.readFileSync(file, 'utf8'));
-    const key = doc?.adminKey || process.env.ADMIN_KEY;
-    if (!key) {
-      throw new Error('ADMIN_KEY is required: set ADMIN_KEY env var or adminKey in the yaml config file.');
-    }
-    return key;
+    return doc?.adminKey || null;
   } catch {
-    const key = process.env.ADMIN_KEY;
-    if (!key) {
-      throw new Error('ADMIN_KEY is required: set ADMIN_KEY env var or adminKey in the yaml config file.');
-    }
-    return key;
+    return null;
   }
 }
 

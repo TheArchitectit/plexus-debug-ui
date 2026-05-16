@@ -2,15 +2,14 @@ services:
   plexus-debug-ui:
     build: .
     ports:
-      - "4002:4002"
+      - "${PORT:-4002}:${PORT:-4002}"
     environment:
       - PLEXUS_API_URL=${PLEXUS_API_URL:-http://host.docker.internal:4000}
       - APP_DATABASE_URL=postgresql://app:${APP_DB_PASSWORD}@db:5432/debug_ui
-      - ADMIN_KEY_FILE=/app/config/plexus.yaml
-      - PORT=4002
+      - ADMIN_KEY=${ADMIN_KEY:-}
+      - PORT=${PORT:-4002}
       - EXPORTS_DIR=/app/exports
     volumes:
-      - ${PLEXUS_CONFIG_PATH:-./plexus.yaml}:/app/config/plexus.yaml:ro
       - ./exports:/app/exports
     depends_on:
       - db

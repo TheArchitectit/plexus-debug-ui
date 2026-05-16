@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useDebug } from '../hooks/useDebug.js';
 import { useAnnotations } from '../hooks/useAnnotations.js';
 
@@ -12,6 +12,36 @@ function safeJsonPrettify(str) {
   } catch {
     return str;
   }
+}
+
+function SearchablePre({ content }) {
+  const [search, setSearch] = useState('');
+  const lines = content.split('\n');
+  const term = search.toLowerCase().trim();
+
+  const filtered = useMemo(() => {
+    if (!term) return lines;
+    return lines.filter((line) => line.toLowerCase().includes(term));
+  }, [lines, term]);
+
+  const matchCount = term ? filtered.length : 0;
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-2">
+        <input
+          className="border rounded px-2 py-1 text-sm flex-1"
+          placeholder="Search in payload..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {term && <span className="text-xs text-slate-500 self-center">{matchCount} lines match</span>}
+      </div>
+      <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-[55vh]">
+        {filtered.join('\n')}
+      </pre>
+    </div>
+  );
 }
 
 function RetryChain({ retryHistory, attemptCount, finalProvider, finalModel, allProviders }) {
@@ -78,105 +108,105 @@ export default function DetailDrawer({ requestId, onClose }) {
   const [noteInput, setNoteInput] = useState('');
 
   const u = data?.usage;
+  const rawReq = safeJsonPrettify(data?.debug?.raw_request);
+  const rawRes = safeJsonPrettify(data?.debug?.raw_response);
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-white shadow-2xl z-50 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <h2 className="font-bold font-mono text-sm">{requestId}</h2>
-        <button className="text-slate-500 hover:text-slate-900" onClick={onClose}>✕</button>
-      </div>
-      <div className="flex border-b">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            className={`flex-1 py-2 text-sm whitespace-nowrap ${tab === t ? 'border-b-2 border-slate-900 font-semibold' : 'text-slate-500'}`}
-            onClick={() => setTab(t)}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 overflow-auto p-4">
-        {loading && <div className="text-slate-500">Loading...</div>}
-        {!loading && tab === 'Summary' && u && (
-          <div className="space-y-2 text-sm">
-            <p><strong>Provider:</strong> {u.provider}</p>
-            <p><strong>Model:</strong> {u.canonical_model_name}</p>
-            <p><strong>Selected model:</strong> {u.selected_model_name}</p>
-            <p><strong>Status:</strong> {u.response_status}</p>
-            <p><strong>Input tokens:</strong> {u.tokens_input}</p>
-            <p><strong>Output tokens:</strong> {u.tokens_output}</p>
-            <p><strong>Duration:</strong> {u.duration_ms}ms</p>
-            <p><strong>Attempt count:</strong> {u.attempt_count}</p>
-            <p><strong>Finish reason:</strong> {u.finish_reason}</p>
-            <p><strong>Tools defined:</strong> {u.tools_defined}</p>
-            <p><strong>Tool calls:</strong> {u.tool_calls_count}</p>
-            <p><strong>Message count:</strong> {u.message_count}</p>
-          </div>
-        )}
-        {!loading && tab === 'Retries' && u && (
-          <RetryChain
-            retryHistory={u.retry_history}
-            attemptCount={u.attempt_count}
-            finalProvider={u.final_attempt_provider}
-            finalModel={u.final_attempt_model}
-            allProviders={u.all_attempted_providers}
-          />
-        )}
-        {!loading && tab === 'Raw Request' && (
-          <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-[60vh]">
-            {safeJsonPrettify(data?.debug?.raw_request)}
-          </pre>
-        )}
-        {!loading && tab === 'Raw Response' && (
-          <pre className="text-xs bg-slate-50 p-3 rounded overflow-auto max-h-[60vh]">
-            {safeJsonPrettify(data?.debug?.raw_response)}
-          </pre>
-        )}
-        {!loading && tab === 'Errors' && (
-          <div className="space-y-3">
-            {data?.errors?.length === 0 && <p className="text-slate-500">No errors recorded.</p>}
-            {data?.errors?.map((e, i) => (
-              <div key={i} className="bg-red-50 p-3 rounded text-sm">
-                <p className="font-semibold text-red-800">{e.error_message}</p>
-                <pre className="text-xs mt-2 overflow-auto">{e.error_stack}</pre>
-              </div>
-            ))}
-          </div>
-        )}
-        {!loading && tab === 'Annotations' && (
-          <div>
-            <div className="flex gap-2 mb-3">
-              <input
-                className="border rounded px-2 py-1 text-sm flex-1"
-                placeholder="Tag"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-              />
-              <input
-                className="border rounded px-2 py-1 text-sm flex-[2]"
-                placeholder="Note"
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-              />
-              <button
-                className="bg-slate-900 text-white px-3 py-1 rounded text-sm"
-                onClick={() => { add(tagInput, noteInput); setTagInput(''); setNoteInput(''); }}
-              >
-                Add
-              </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white shadow-2xl rounded-lg w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <h2 className="font-bold font-mono text-sm">{requestId}</h2>
+          <button className="text-slate-500 hover:text-slate-900" onClick={onClose}>✕</button>
+        </div>
+        <div className="flex border-b overflow-x-auto">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              className={`px-4 py-2 text-sm whitespace-nowrap shrink-0 ${tab === t ? 'border-b-2 border-slate-900 font-semibold' : 'text-slate-500'}`}
+              onClick={() => setTab(t)}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-auto p-4">
+          {loading && <div className="text-slate-500">Loading...</div>}
+          {!loading && tab === 'Summary' && u && (
+            <div className="space-y-2 text-sm">
+              <p><strong>Provider:</strong> {u.provider}</p>
+              <p><strong>Model:</strong> {u.canonical_model_name}</p>
+              <p><strong>Selected model:</strong> {u.selected_model_name}</p>
+              <p><strong>Status:</strong> {u.response_status}</p>
+              <p><strong>Input tokens:</strong> {u.tokens_input}</p>
+              <p><strong>Output tokens:</strong> {u.tokens_output}</p>
+              <p><strong>Duration:</strong> {u.duration_ms}ms</p>
+              <p><strong>Attempt count:</strong> {u.attempt_count}</p>
+              <p><strong>Finish reason:</strong> {u.finish_reason}</p>
+              <p><strong>Tools defined:</strong> {u.tools_defined}</p>
+              <p><strong>Tool calls:</strong> {u.tool_calls_count}</p>
+              <p><strong>Message count:</strong> {u.message_count}</p>
             </div>
-            {annotations.map((a) => (
-              <div key={a.id} className="flex justify-between items-start bg-slate-50 p-2 rounded mb-2 text-sm">
-                <div>
-                  {a.tag && <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs mr-2">{a.tag}</span>}
-                  <span>{a.note}</span>
+          )}
+          {!loading && tab === 'Retries' && u && (
+            <RetryChain
+              retryHistory={u.retry_history}
+              attemptCount={u.attempt_count}
+              finalProvider={u.final_attempt_provider}
+              finalModel={u.final_attempt_model}
+              allProviders={u.all_attempted_providers}
+            />
+          )}
+          {!loading && tab === 'Raw Request' && (
+            <SearchablePre content={rawReq} />
+          )}
+          {!loading && tab === 'Raw Response' && (
+            <SearchablePre content={rawRes} />
+          )}
+          {!loading && tab === 'Errors' && (
+            <div className="space-y-3">
+              {data?.errors?.length === 0 && <p className="text-slate-500">No errors recorded.</p>}
+              {data?.errors?.map((e, i) => (
+                <div key={i} className="bg-red-50 p-3 rounded text-sm">
+                  <p className="font-semibold text-red-800">{e.error_message}</p>
+                  <pre className="text-xs mt-2 overflow-auto">{e.error_stack}</pre>
                 </div>
-                <button className="text-red-500 text-xs" onClick={() => remove(a.id)}>Delete</button>
+              ))}
+            </div>
+          )}
+          {!loading && tab === 'Annotations' && (
+            <div>
+              <div className="flex gap-2 mb-3">
+                <input
+                  className="border rounded px-2 py-1 text-sm flex-1"
+                  placeholder="Tag"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                />
+                <input
+                  className="border rounded px-2 py-1 text-sm flex-[2]"
+                  placeholder="Note"
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                />
+                <button
+                  className="bg-slate-900 text-white px-3 py-1 rounded text-sm"
+                  onClick={() => { add(tagInput, noteInput); setTagInput(''); setNoteInput(''); }}
+                >
+                  Add
+                </button>
               </div>
-            ))}
-          </div>
-        )}
+              {annotations.map((a) => (
+                <div key={a.id} className="flex justify-between items-start bg-slate-50 p-2 rounded mb-2 text-sm">
+                  <div>
+                    {a.tag && <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs mr-2">{a.tag}</span>}
+                    <span>{a.note}</span>
+                  </div>
+                  <button className="text-red-500 text-xs" onClick={() => remove(a.id)}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
