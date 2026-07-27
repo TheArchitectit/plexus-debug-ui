@@ -43,7 +43,7 @@ export default function RequestTable({ rows, selected, onSelect, onSelectAll, on
               <tr
                 key={row.request_id}
                 className={`border-t hover:bg-slate-50 cursor-pointer ${retried ? 'bg-amber-50' : ''} ${badFinish ? 'bg-red-50' : ''}`}
-                onClick={() => onRowClick(row.request_id)}
+                onClick={() => onRowClick(row)}
               >
                 <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                   <input

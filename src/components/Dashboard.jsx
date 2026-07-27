@@ -8,7 +8,7 @@ import { useRequests } from '../hooks/useRequests.js';
 export default function Dashboard() {
   const [filters, setFilters] = useState({});
   const [selected, setSelected] = useState(new Set());
-  const [detailId, setDetailId] = useState(null);
+  const [detailRow, setDetailRow] = useState(null);
   const [showExport, setShowExport] = useState(false);
 
   const { rows, loading, error, loadMore, hasMore } = useRequests(filters);
@@ -81,10 +81,10 @@ export default function Dashboard() {
         selected={selected}
         onSelect={onSelect}
         onSelectAll={onSelectAll}
-        onRowClick={setDetailId}
+        onRowClick={setDetailRow}
       />
       {loading && <div className="text-center py-4 text-slate-500">Loading...</div>}
-      {detailId && <DetailDrawer requestId={detailId} onClose={() => setDetailId(null)} />}
+      {detailRow && <DetailDrawer requestId={detailRow.request_id} usage={detailRow} onClose={() => setDetailRow(null)} />}
       {showExport && (
         <ExportModal
           requestIds={Array.from(selected)}

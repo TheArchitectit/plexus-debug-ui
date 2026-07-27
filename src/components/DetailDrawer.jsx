@@ -258,14 +258,16 @@ function RetryChain({ retryHistory, attemptCount, finalProvider, finalModel, all
   );
 }
 
-export default function DetailDrawer({ requestId, onClose }) {
+export default function DetailDrawer({ requestId, usage, onClose }) {
   const [tab, setTab] = useState('Summary');
   const { data, loading } = useDebug(requestId);
   const { annotations, add, remove } = useAnnotations(requestId);
   const [tagInput, setTagInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
 
-  const u = data?.usage;
+  // Summary/Retries come from the usage row passed by the table; the detail
+  // route may also return a usage object if a future API adds one.
+  const u = data?.usage || usage;
   const rawReq = safeJsonPrettify(data?.debug?.raw_request);
   const rawRes = safeJsonPrettify(data?.debug?.raw_response);
   const toolCalls = data?.toolCalls || [];
