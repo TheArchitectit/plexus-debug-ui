@@ -5,7 +5,7 @@ import archiver from 'archiver';
 const MAX_INLINE_SIZE = 5 * 1024 * 1024;
 
 function sanitizeId(id) {
-  return id.replace(/[\/\\]/g, '_').replace(/\.\./g, '_');
+  return id.replace(/[/\\]/g, '_').replace(/\.\./g, '_');
 }
 
 export async function createDebugBundle(requests, outPath) {
@@ -32,7 +32,7 @@ export async function createDebugBundle(requests, outPath) {
         provider: r.provider,
         model: r.canonical_model_name || r.incoming_model_alias,
         status: r.response_status,
-        hasError: !!r.error,
+        hasError: !!r.error || (r.errors?.length ?? 0) > 0,
       })),
       warnings: [],
     };
@@ -42,14 +42,11 @@ export async function createDebugBundle(requests, outPath) {
     for (const req of requests) {
       const safeId = sanitizeId(req.request_id);
       const base = `requests/${safeId}`;
-      const summary = {
-        request_id: req.request_id,
-        provider: req.provider,
-        model: req.canonical_model_name || req.incoming_model_alias,
-        status: req.response_status,
-        created_at: req.created_at,
-      };
-      archive.append(JSON.stringify(summary, null, 2), { name: `${base}.json` });
+
+      // Self-contained per-request record: everything except the raw
+      // payloads, which live in raw/<id>_request.json / _response.json.
+      const { raw_request, raw_response, ...rest } = req;
+      archive.append(JSON.stringify(rest, null, 2), { name: `${base}.json` });
 
       const rawReqSize = req.raw_request?.length || 0;
       const rawRespSize = req.raw_response?.length || 0;
@@ -66,9 +63,15 @@ export async function createDebugBundle(requests, outPath) {
         manifest.warnings.push(`${req.request_id}: response payload too large (${rawRespSize} bytes)`);
       }
 
-      if (req.error) {
-        archive.append(JSON.stringify(req.error, null, 2), { name: `errors/${safeId}_error.json` });
-      }
+			if (req.errors?.length) {
+				archive.append(JSON.stringify(req.errors, null, 2), {
+					name: `errors/${safeId}_error.json`,
+				});
+			} else if (req.error) {
+				archive.append(JSON.stringify(req.error, null, 2), {
+					name: `errors/${safeId}_error.json`,
+				});
+			}
     }
 
     const reportHtml = generateReportHtml(requests);

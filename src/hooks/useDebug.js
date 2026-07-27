@@ -8,6 +8,10 @@ export function useDebug(requestId) {
 
   useEffect(() => {
     let cancelled = false;
+    // Clear stale payload so switching rows never briefly shows the previous
+    // request's raw data.
+    setData(null);
+    setError(null);
     setLoading(true);
     requestsApi.debug(requestId)
       .then((res) => { if (!cancelled) setData(res); })
