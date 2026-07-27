@@ -29,7 +29,7 @@ Browser (React + Vite)  ←→  Node.js/Express Backend  ←→  Plexus Manageme
 - **Backend:** Node.js 20, Express 4, Plexus Management API client, `archiver` for ZIP streaming
 - **Frontend:** React 18, Vite 5, Tailwind CSS 3
 - **Database:** PostgreSQL 16 (local DB for annotations and export history)
-- **Auth:** Single admin key from mounted `plexus.yaml` file (passed as `x-admin-key` to Plexus API)
+- **Auth:** Admin key from mounted `plexus.yaml` (passed as `x-admin-key` to Plexus API). `PLEXUS_API_ADMIN_KEY` can override it when the key used to log into this UI differs from the Plexus management key.
 
 ## Quick Start
 
@@ -41,6 +41,7 @@ cp .env.example .env
 #   PLEXUS_API_URL=http://host.docker.internal:4000
 #   APP_DB_PASSWORD=your_app_db_password
 #   PLEXUS_CONFIG_PATH=/path/to/plexus.yaml
+#   PLEXUS_API_ADMIN_KEY=   # optional: only if the Plexus management key differs from the UI admin key
 ```
 
 ### 2. Ensure Plexus config is available
@@ -76,6 +77,15 @@ The debug UI uses the Plexus management API instead of direct database queries. 
 
 The Plexus API returns camelCase field names (`requestId`, `toolCallsCount`, etc.). The `plexusApi.js` client normalizes these to snake_case for frontend compatibility.
 
+### Management API quirks (worked around in code)
+
+Discovered against Plexus v1.x management routes:
+
+- **No single-usage endpoint.** `GET /v0/management/usage/:id` does not exist. To resolve one request's usage row, use the list endpoint with the exact-match filter: `GET /v0/management/usage?requestId=<id>&limit=1`.
+- **`/v0/management/errors` silently ignores `?requestId=`.** It only supports `limit`/`offset` and returns the global latest-N errors. `plexusApi.listErrors(requestId)` fetches the recent 500-error window and filters client-side, so errors that aged out of the window are unavailable.
+- **Debug payloads are large.** A single `GET /v0/management/debug/logs/:requestId` response can be 1.5+ MB (a full LLM `rawRequest`); code handling it must tolerate large strings.
+- **Summary/Retries in the drawer come from the usage row the user clicked**, not from a detail fetch, because of the missing single-usage endpoint.
+
 ### Client-side filtering
 
 Some filters that the Plexus API does not support natively are applied client-side after fetching:
@@ -95,6 +105,7 @@ The main view with a search bar, filter panel, and paginated request table.
 **Table columns:** Request ID, Provider, Model, API Key, Status, Context (tokens in → out), Tools (calls/defined), Finish Reason, Duration, Time
 
 **Row highlights:**
+
 - Amber background — request was retried (attempt count badge shown)
 - Red background — bad finish reason (`error`, `length`, `max_tokens`)
 - Blue finish badge — tool call finish (`tool_calls`, `tool_use`)
@@ -102,7 +113,7 @@ The main view with a search bar, filter panel, and paginated request table.
 
 ### Detail Drawer
 
-Slide-out panel with tabs:
+Slide-out panel opened by clicking a request row. The header has an **Export** button that immediately downloads a ZIP debug bundle for exactly this request — the fastest path to sharing one broken request. Tabs:
 
 | Tab | Content |
 |-----|---------|
@@ -143,13 +154,16 @@ The app creates these tables on startup via `db/migrate.js`:
 
 ```
 plexus-debug-{timestamp}.zip
-├── manifest.json          # Metadata: export date, filter snapshot, request count
+├── manifest.json          # Metadata: export date, request count, hasError per request, warnings
 ├── report.html            # Overview with provider breakdown, error stats
-├── requests/{id}.json     # Parsed summaries
-├── raw/{id}_request.json  # Raw request payload
+├── requests/{id}.json     # Self-contained full record: usage fields, toolCalls, errors.
+│                          # Used for single-request debugging exports.
+├── raw/{id}_request.json  # Raw request payload (split out; can be MB-sized)
 ├── raw/{id}_response.json # Raw response payload
-└── errors/{id}_error.json # Error details
+└── errors/{id}_error.json # All errors attributed to that request (only when present)
 ```
+
+All payload files for one request share its `request_id` in the filename; there is no cross-request mixing.
 
 ## Security Notes
 
@@ -169,7 +183,9 @@ npm test         # Vitest (backend + frontend unit tests)
 
 ## Deployment
 
-The included `docker-compose.yml` is configured for local/development use. A `docker-compose.test.yml` is included for running a test instance on a separate port.
+The included `docker-compose.yml` is configured for local/development use. A `docker-compose.test.yml` is included for running a test instance on a separate port. `podman-compose.ai01.yml` is the (rootful) Podman override used on the AI01 host: it points `PLEXUS_API_URL` at the host-published Plexus port, reads the admin key from the live `plexus.yaml` (`ADMIN_KEY_FILE`), and publishes on `${PORT}`.
+
+> **Podman gotcha:** `podman-compose up -d --build` rebuilds the image but may keep running the *old* container with stale code. Always deploy with `up -d --build --force-recreate` and verify the file contents inside the container (`podman exec plexus-debug-ui sh -c 'head routes/debug.js'`) if behavior doesn't change.
 
 For production:
 
@@ -179,6 +195,19 @@ For production:
 4. Set `PLEXUS_CONFIG_PATH` to the absolute path of your `plexus.yaml`
 
 ## Changelog
+
+### v0.2.1 — Detail Drawer & Export Fixes
+
+- Fixed detail drawer showing empty tabs on every request: the debug route called `plexusApi.getUsage()`, which does not exist (and the management API has no single-usage endpoint), producing a 500 for `/api/debug/:requestId`
+- Summary/Retries tabs now use the clicked usage row (passed from the table) instead of re-fetching
+- Fixed exports silently dropping almost every selected request: the export looked each request up in a `limit=1` list page, matching only the single most recent row; it now filters by `requestId`
+- Fixed Errors tab/export showing the global latest 50 errors for every request: `/v0/management/errors` ignores `?requestId=`, now filtered client-side over a recent 500-error window
+- Fixed errors never being written into ZIP bundles at all (`error_message` fields vs `req.error` mismatch) and `manifest.hasError` always being false
+- Per-request Export button in the detail drawer for one-click single-request debug bundles
+- ZIP `requests/{id}.json` is now a self-contained record (full usage row, tool calls, errors)
+- Switching rows no longer flashes the previous request's raw payload (stale state cleared on id change)
+- New optional `PLEXUS_API_ADMIN_KEY` env var when the Plexus management key differs from the UI admin key
+- Documented management API quirks and the `podman-compose --force-recreate` deployment gotcha
 
 ### v0.2.0 — API Integration + Search + Retry Detection
 
@@ -206,7 +235,6 @@ For production:
 ## License
 
 MIT
-
 
 ## ☁️ Cloud Credits
 

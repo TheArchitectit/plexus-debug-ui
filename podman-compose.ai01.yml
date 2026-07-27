@@ -1,0 +1,58 @@
+# Compose file for deploying plexus-debug-ui on AI01 with (sudo) podman-compose.
+#
+# Differences from docker-compose.yml:
+#   - PLEXUS_API_URL points at the plexus container published on AI01
+#     host port 4001
+#   - Admin key is read from the real plexus.yaml via ADMIN_KEY_FILE
+#     (mounted read-only)
+#   - extra_hosts: host.docker.internal:host-gateway works with podman/netavark
+#
+# Usage on AI01 (rootful, matching the plexus deployment):
+#   cd ~/plexus-debug-ui
+#   cp .env.example .env   # set APP_DB_PASSWORD
+#   sudo podman-compose -f podman-compose.ai01.yml up -d --build
+
+version: "3.8"
+
+services:
+  plexus-debug-ui:
+    build: .
+    container_name: plexus-debug-ui
+    ports:
+      - "${PORT:-4002}:${PORT:-4002}"
+    environment:
+      - PLEXUS_API_URL=${PLEXUS_API_URL:-http://host.docker.internal:4001}
+      - APP_DATABASE_URL=postgresql://app:${APP_DB_PASSWORD}@db:5432/debug_ui
+      # Read the admin key out of the live plexus.yaml
+      # instead of duplicating secrets
+      - ADMIN_KEY=${ADMIN_KEY:-}
+      - ADMIN_KEY_FILE=/run/config/plexus.yaml
+      - PLEXUS_API_ADMIN_KEY=${PLEXUS_API_ADMIN_KEY:-}
+      - PORT=${PORT:-4002}
+      - EXPORTS_DIR=/app/exports
+    volumes:
+      - ./exports:/app/exports
+      - /home/user001/plexus/plexus.yaml:/run/config/plexus.yaml:ro
+    depends_on:
+      - db
+    command: >
+      sh -c "node db/migrate.js && node server.js"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: plexus-debug-ui-db
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+      POSTGRES_DB: debug_ui
+    ports:
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
