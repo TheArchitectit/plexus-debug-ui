@@ -42,6 +42,7 @@ function buildQuery(filters) {
     status: 'responseStatus',
     dateFrom: 'startDate',
     dateTo: 'endDate',
+    requestId: 'requestId',
     hasError: null,
     hasRetry: null,
     finishReason: null,
@@ -76,8 +77,11 @@ export const plexusApi = {
   },
 
   listErrors(requestId) {
-    const qs = requestId ? `?requestId=${requestId}` : '';
-    return api(`/v0/management/errors${qs}`).then((res) => camelToSnake(Array.isArray(res) ? res : res.data || []));
+    // The management errors endpoint ignores a requestId query param — it
+    // only supports limit/offset — so filter client-side over recent errors.
+    return api('/v0/management/errors?limit=500')
+      .then((res) => camelToSnake(Array.isArray(res) ? res : res.data || []))
+      .then((rows) => (requestId ? rows.filter((r) => r.request_id === requestId) : rows));
   },
 
   listPerformance() {

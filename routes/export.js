@@ -27,7 +27,11 @@ router.post('/', asyncHandler(async (req, res) => {
     requestIds.map(async (id) => {
       try {
         const [usage, debug, errors] = await Promise.all([
-          plexusApi.listUsage({ limit: '1' }).then((r) => r.data.find((u) => u.request_id === id)).catch(() => null),
+          // The usage list API supports an exact requestId filter (there is no
+          // single-usage endpoint). Note: listErrors is a client-side filter
+          // over the recent-errors window, so older errors for a request may
+          // have aged out of that window.
+          plexusApi.listUsage({ requestId: id, limit: '1' }).then((r) => r.data[0] || null).catch(() => null),
           plexusApi.getDebugLog(id).catch(() => null),
           plexusApi.listErrors(id).catch(() => []),
         ]);
