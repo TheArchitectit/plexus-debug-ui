@@ -27,5 +27,6 @@ export const config = {
   plexusApiUrl: process.env.PLEXUS_API_URL || 'http://host.docker.internal:4000',
   appDbUrl: requireEnv('APP_DATABASE_URL'),
   adminKey: loadAdminKey(),
+  plexusApiAdminKey: process.env.PLEXUS_API_ADMIN_KEY || loadAdminKey(),
   exportsDir: process.env.EXPORTS_DIR || './exports',
 };

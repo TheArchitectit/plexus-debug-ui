@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 
 const BASE = config.plexusApiUrl.replace(/\/$/, '');
-const ADMIN_KEY = config.adminKey;
+const ADMIN_KEY = config.plexusApiAdminKey;
 
 async function api(path, opts = {}) {
   const url = path.startsWith('http') ? path : `${BASE}${path}`;
