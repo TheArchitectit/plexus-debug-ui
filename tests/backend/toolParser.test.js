@@ -148,4 +148,76 @@ describe('extractToolCalls', () => {
     expect(calls[2].result).toBeNull();
     expect(calls[2].error).toBeNull();
   });
+
+  // --- New: Anthropic snapshot format (the production plexus stream shape) ---
+
+  it('extracts tool_use blocks from transformed_response_snapshot', () => {
+    const snapshot = JSON.stringify({
+      id: 'gen-1',
+      type: 'message',
+      role: 'assistant',
+      model: 'stealth/ox-alpha',
+      content: [{
+        type: 'tool_use',
+        id: 'call_xyz',
+        name: 'Bash',
+        input: { command: 'cargo test', timeout: 1800000 },
+      }],
+      stop_reason: 'tool_use',
+    });
+
+    const sseResp = ': OPENROUTER PROCESSING\n\ndata: {"object":"chat.completion.chunk"}';
+    const calls = extractToolCalls(null, sseResp, {
+      transformed_response_snapshot: snapshot,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].tool_name).toBe('Bash');
+    expect(calls[0].arguments).toEqual({ command: 'cargo test', timeout: 1800000 });
+  });
+
+  it('reassembles incremental delta tool_calls from an SSE stream', () => {
+    // Fragments concatenated verbatim match the real plexus behaviour where the
+    // provider streams the JSON arguments string piece by piece.
+    const sseResp = [
+      ': OPENROUTER PROCESSING',
+      '',
+      'data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_ss1","type":"function","function":{"name":"Bash","arguments":""}}]}}]}',
+      '',
+      'data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"command\\":\\"cargo "}}]}}]}',
+      '',
+      'data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"test --workspace\\"}"}}]},"finish_reason":"tool_calls"}]}',
+      '',
+      'data: [DONE]',
+    ].join('\n');
+
+    const calls = extractToolCalls(null, sseResp, {});
+    expect(calls).toHaveLength(1);
+    expect(calls[0].tool_name).toBe('Bash');
+    expect(calls[0].id).toBe('call_ss1');
+    expect(calls[0].arguments).toEqual({ command: 'cargo test --workspace' });
+  });
+
+  it('prefers snapshot over SSE when both are present', () => {
+    const snapshot = JSON.stringify({
+      content: [{ type: 'tool_use', id: 'snap_1', name: 'Read', input: { path: '/a' } }],
+    });
+    const sseResp = 'data: {"object":"chat.completion.chunk","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"Wrong","arguments":""}}]}}]}';
+    const calls = extractToolCalls(null, sseResp, { transformed_response_snapshot: snapshot });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].tool_name).toBe('Read');
+  });
+
+  it('accepts the single-object opts form', () => {
+    const snapshot = JSON.stringify({
+      content: [{ type: 'tool_use', id: 'snap_2', name: 'Edit', input: {} }],
+    });
+    const calls = extractToolCalls({
+      rawRequest: null,
+      rawResponse: ': OPENROUTER PROCESSING\ndata: {"object":"chat.completion.chunk"}',
+      transformedResponseSnapshot: snapshot,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].tool_name).toBe('Edit');
+  });
 });
