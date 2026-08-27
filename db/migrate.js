@@ -47,6 +47,18 @@ CREATE TABLE IF NOT EXISTS parsed_tool_calls (
 );
 
 CREATE INDEX IF NOT EXISTS idx_parsed_tool_calls_request_id ON parsed_tool_calls(request_id);
+
+CREATE TABLE IF NOT EXISTS provider_reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    provider TEXT,
+    notes TEXT,
+    request_ids TEXT[] NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size BIGINT,
+    created_by TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_provider_reports_created_at ON provider_reports(created_at);
 `;
 
 async function migrate() {
