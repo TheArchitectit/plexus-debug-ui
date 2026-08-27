@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Dashboard from './components/Dashboard.jsx';
 import ExportHistory from './components/ExportHistory.jsx';
+import ReportsView from './components/ReportsView.jsx';
 
 export default function App() {
   const [view, setView] = useState('dashboard');
@@ -21,10 +22,17 @@ export default function App() {
         >
           Export History
         </button>
+        <button
+          className={`px-3 py-1 rounded ${view === 'reports' ? 'bg-slate-700' : 'hover:bg-slate-800'}`}
+          onClick={() => setView('reports')}
+        >
+          Reports
+        </button>
       </nav>
       <main className="p-4 max-w-7xl mx-auto">
         {view === 'dashboard' && <Dashboard />}
         {view === 'history' && <ExportHistory />}
+        {view === 'reports' && <ReportsView />}
       </main>
     </div>
   );
