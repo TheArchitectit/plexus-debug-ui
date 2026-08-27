@@ -96,7 +96,9 @@ Dashboard rows (selected)   Reports view create-form (pasted request IDs)
   check as export.js:104-108).
 - `GET /` → history (last 50), join nothing needed (own table).
 - Validation: reject non-array / empty `requestIds` (400), cap at 100 like
-  exports; if **zero** ids resolve to any usage row → 400 "no matching requests".
+  exports (matching the client-side cap on the IDs field, below); if **zero**
+  ids resolve to any usage row → 400 "no matching requests". `notes` capped at
+  4000 chars server-side (matches the textarea `maxLength`).
 
 **`db/migrate.js`** — add:
 ```sql
@@ -121,11 +123,34 @@ idempotent (the deploy command already runs it).
 - `src/components/ReportsView.jsx` (new): create form (request-ID textarea +
   notes textarea + Create button → triggers download on success) and a history
   table (provider, #requests, created, download link). Mirrors `ExportHistory.jsx`.
+- **Input caps with guidance tooltips (client-enforced, server re-validates):**
+  shared constants `MAX_REPORT_REQUESTS = 100`, `MAX_NOTES_CHARS = 4000`,
+  exported from `services/providerReport.js` and imported by both the frontend
+  and `routes/reports.js` (single source of truth).
+  - Request-IDs textarea: accepts newline/comma/space-separated ids; counts
+    ids client-side, blocks Create and shows an inline hint when over
+    `MAX_REPORT_REQUESTS`. `title` tooltip:
+    "One request ID per line (or comma-separated). Up to 100 requests per
+    report — split larger incidents into multiple reports. Each request adds
+    its full raw SSE stream to the ZIP."
+  - Notes textarea: `maxLength={MAX_NOTES_CHARS}`, live `n / 4000` counter
+    below the field. `title` tooltip:
+    "Shown as the Summary section at the top of report.md — what went wrong,
+    what you're asking the provider to check. Plain markdown, up to 4000
+    characters."
+  - Dashboard "Provider Report" button: notes prompt enforces the same 4000
+    cap and refuses when selection exceeds 100 rows (button disabled with
+    tooltip "Select at most 100 requests").
 - `src/App.jsx`: add a `Reports` nav button + `{view === 'reports' && <ReportsView/>}`.
 - `src/components/Dashboard.jsx`: add a "Provider Report" button next to the
   existing Export button that opens a small prompt for notes, then POSTs the
   current selection to `/api/reports` and downloads the result. (Reuses selected
   rows already tracked there.)
+
+Single source of truth: `services/providerReport.js` is dependency-free (pure
+functions), so both `routes/reports.js` (server) and the frontend components
+import `MAX_REPORT_REQUESTS` / `MAX_NOTES_CHARS` from it directly (Vite bundles
+it fine). `src/lib/reportLimits.js` is dropped — no duplicated literals to drift.
 
 ### report.md layout
 
@@ -210,7 +235,8 @@ server's — this is server code, not a workflow sandbox, so `Date.now()` is fin
    requestIds → 400. The DB uses the app Postgres; to keep backend tests hermetic
    and match the existing suite (which does not spin up pg), the route tests mock
    `queryApp` from `db/app.js` and only assert the ZIP is produced with the right
-   entries + the insert is called with the expected args.
+   entries + the insert is called with the expected args. Also: >100 ids → 400,
+   oversized notes → 400.
 4. **zipExporter.createProviderReportBundle** — writes the given entries; unzip
    and assert `report.md` and `raw/*` present (extend the existing unzipper test
    file).
