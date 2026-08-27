@@ -8,6 +8,36 @@ function sanitizeId(id) {
 	return id.replace(/[/\\]/g, "_").replace(/\.\./g, "_");
 }
 
+// Provider-facing evidence bundle: one report.md + caller-provided raw files
+// (paths already sanitized by services/providerReport.js).
+export async function createProviderReportBundle({ reportMd, rawFiles = {} }, outPath) {
+	const dir = path.dirname(outPath);
+	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+	const output = fs.createWriteStream(outPath);
+	const archive = archiver("zip", { zlib: { level: 6 } });
+
+	await new Promise((resolve, reject) => {
+		output.on("close", resolve);
+		output.on("error", reject);
+		archive.on("error", reject);
+		archive.on("warning", (err) => {
+			if (err.code !== "ENOENT") reject(err);
+		});
+		archive.pipe(output);
+
+		archive.append(reportMd, { name: "report.md" });
+		for (const [name, content] of Object.entries(rawFiles)) {
+			if (content == null) continue;
+			archive.append(content, { name });
+		}
+		archive.finalize();
+	});
+
+	const stats = fs.statSync(outPath);
+	return { filePath: outPath, fileSize: stats.size };
+}
+
 export async function createDebugBundle(requests, outPath) {
 	const dir = path.dirname(outPath);
 	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
