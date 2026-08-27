@@ -92,3 +92,133 @@ export function analyzeResponse(debug) {
   }
   return out;
 }
+
+function approxTokens(chars) {
+  return chars ? Math.round(chars.length / 4) : 0;
+}
+
+function escapeCell(s) {
+  return String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+}
+
+function providerSlug(provider) {
+  const base = (provider || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return base || 'mixed';
+}
+
+function stamp(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}-${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`;
+}
+
+export function formatReportFilename(provider, date = new Date()) {
+  return `provider-report-${providerSlug(provider)}-${stamp(date)}.zip`;
+}
+
+function sanitizeId(id) {
+  return String(id).replace(/[/\\]/g, '_').replace(/\.\./g, '_');
+}
+
+// Truncate text to a hard char budget, appending an ellipsis marker when cut.
+function clip(text, max) {
+  const s = String(text ?? '');
+  if (s.length <= max) return s;
+  return s.slice(0, max) + `\n\n…[truncated ${s.length - max} chars — full text in raw file]`;
+}
+
+export function buildReportDoc(requests, notes = '') {
+  const providers = [...new Set(requests.map((r) => r.usage?.provider).filter(Boolean))];
+  const L = [];
+  L.push('# Provider Debug Report');
+  L.push('');
+  L.push(`Generated ${new Date().toISOString()} · ${requests.length} request(s) · Provider(s): ${providers.join(', ') || 'unknown'}`);
+  L.push('');
+  L.push('## Summary');
+  L.push('');
+  L.push(notes ? clip(notes, MAX_NOTES_CHARS) : '_No notes provided._');
+  L.push('');
+  L.push('## Requests');
+  L.push('');
+  L.push('| # | request_id | time (UTC) | requested → served | provider | tokens in/out | finish | response id |');
+  L.push('|---|-----------|------------|--------------------|----------|---------------|--------|-------------|');
+  requests.forEach((r, i) => {
+    const u = r.usage || {};
+    const a = r.analysis || {};
+    const routed = `${u.incoming_model_alias || '?'} → ${u.selected_model_name || a.model || '?'}`;
+    L.push(`| ${i + 1} | ${escapeCell(r.request_id)} | ${escapeCell(u.date)} | ${escapeCell(routed)} | ${escapeCell(u.provider)} | ${escapeCell(u.tokens_input ?? '?')}/${escapeCell(u.tokens_output ?? '?')} | ${escapeCell(u.finish_reason || a.finishReason)} | ${escapeCell(a.responseId)} |`);
+  });
+  L.push('');
+
+  requests.forEach((r, i) => {
+    const u = r.usage || {};
+    const a = r.analysis || {};
+    const safeId = sanitizeId(r.request_id);
+    L.push('---');
+    L.push('');
+    L.push(`## Request ${i + 1}: ${r.request_id}`);
+    L.push('');
+    L.push(`- **Time:** ${u.date ?? '?'}`);
+    L.push(`- **Requested (alias):** ${u.incoming_model_alias ?? '?'}`);
+    L.push(`- **Canonical:** ${u.canonical_model_name ?? '?'}`);
+    L.push(`- **Served (selected):** ${u.selected_model_name ?? a.model ?? '?'}`);
+    L.push(`- **Provider:** ${u.provider ?? '?'}`);
+    L.push(`- **Status / finish_reason:** ${u.response_status ?? '?'} / ${u.finish_reason || a.finishReason || '?'}`);
+    L.push(`- **Tokens in/out:** ${u.tokens_input ?? '?'} / ${u.tokens_output ?? '?'}`);
+    L.push(`- **Duration:** ${u.duration_ms ?? '?'} ms · **Streamed:** ${u.is_streamed ?? '?'}`);
+    if (a.responseId) L.push(`- **Response id (chatcmpl):** ${a.responseId}`);
+    if (a.created) L.push(`- **Response created (unix):** ${a.created}`);
+    if (a.model) L.push(`- **Model self-reported in stream:** ${a.model}`);
+    L.push('');
+
+    if (!a.present) {
+      L.push('> Response payload not stored for this request — match on request_id and timestamp above.');
+      L.push('');
+      return;
+    }
+
+    L.push(`### Assistant text (${a.assistantText.length} chars, ~${approxTokens(a.assistantText)} tokens)`);
+    L.push('');
+    L.push('```');
+    L.push(clip(a.assistantText, MAX_INLINE_TEXT));
+    L.push('```');
+    L.push('');
+
+    if (a.reasoningText) {
+      L.push(`### Reasoning (${a.reasoningText.length} chars, ~${approxTokens(a.reasoningText)} tokens)`);
+      L.push('');
+      L.push('```');
+      L.push(clip(a.reasoningText, MAX_INLINE_TEXT));
+      L.push('```');
+      L.push('');
+    }
+
+    if (a.toolCalls?.length) {
+      L.push('### Tool calls');
+      L.push('');
+      L.push('```json');
+      L.push(JSON.stringify(a.toolCalls, null, 2));
+      L.push('```');
+      L.push('');
+    }
+
+    L.push(`### Raw SSE — first 500 lines (full stream: \`raw/${safeId}_response.sse\`)`);
+    L.push('');
+    L.push('```');
+    L.push(String(a.rawSse).split('\n').slice(0, 500).join('\n'));
+    L.push('```');
+    L.push('');
+  });
+
+  return L.join('\n');
+}
+
+export function rawFilesForRequest(request) {
+  const safeId = sanitizeId(request.request_id);
+  const files = {};
+  const sse = request.analysis?.rawSse || '';
+  if (sse) files[`raw/${safeId}_response.sse`] = sse;
+  const rawReq = request.debug?.raw_request ?? request.debug?.transformed_request;
+  if (rawReq) files[`raw/${safeId}_request.json`] =
+    typeof rawReq === 'string' ? rawReq : JSON.stringify(rawReq);
+  return files;
+}
