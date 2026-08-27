@@ -29,7 +29,7 @@ Spec: `docs/superpowers/specs/2026-08-27-provider-report-design.md`
 
 Vitest runs all tests in a `jsdom` environment (see `vite.config.js` → `test.environment: 'jsdom'`); the backend tests here don't touch DOM APIs so they work as-is. No `.env` exists in the repo and the committed suite runs bare, so run tests with plain `npx vitest run <file>` (no env prefix).
 
-**Hard repo rule: no source file may exceed 500 lines.** Every file this plan creates is sized to stay well under it. The plan therefore splits work across focused modules instead of one big `providerReport.js`, and Task 0 clears the existing violation (`DetailDrawer.jsx`, 545 lines) before any feature work. Check at any time with:
+**Hard repo rule: no source file may exceed 500 lines.** Every file this plan creates is sized to stay well under it (`providerReport.js` lands at ~300 lines), and Task 0 clears the existing violation (`DetailDrawer.jsx`, 545 lines) before any feature work. Check at any time with:
 
 ```bash
 find . -path ./node_modules -prune -o -path ./.git -prune -o -path ./dist -prune -o -path ./docs -prune -o -type f \( -name '*.js' -o -name '*.jsx' \) -print | xargs wc -l | sort -rn | head
