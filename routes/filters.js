@@ -9,7 +9,9 @@ router.get('/', asyncHandler(async (req, res) => {
   const rows = result.data || [];
 
   const providers = [...new Set(rows.map((r) => r.provider).filter(Boolean))].sort();
-  const models = [...new Set(rows.map((r) => r.canonical_model_name || r.incoming_model_alias).filter(Boolean))].sort();
+  // Requests are filtered server-side by incomingModelAlias (see plexusApi
+  // buildQuery), so the dropdown must offer the alias clients actually send.
+  const models = [...new Set(rows.map((r) => r.incoming_model_alias || r.canonical_model_name).filter(Boolean))].sort();
   const apiKeys = [...new Set(rows.map((r) => r.api_key).filter(Boolean))].sort();
   const finishReasons = [...new Set(rows.map((r) => r.finish_reason).filter(Boolean))].sort();
 

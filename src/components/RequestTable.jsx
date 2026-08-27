@@ -1,4 +1,5 @@
 import React from "react";
+import { modelDisplay } from "../lib/modelDisplay.js";
 
 function formatDate(ts) {
 	if (!ts) return "-";
@@ -45,6 +46,7 @@ export default function RequestTable({
 				<tbody>
 					{rows.map((row) => {
 						const retried = Number(row.attempt_count) > 1;
+						const model = modelDisplay(row);
 						const badFinish =
 							row.finish_reason === "error" ||
 							row.finish_reason === "length" ||
@@ -79,7 +81,10 @@ export default function RequestTable({
 								</td>
 								<td className="px-3 py-2">{row.provider}</td>
 								<td className="px-3 py-2">
-									{row.canonical_model_name || row.incoming_model_alias}
+									{model.served || "-"}
+									{model.different && (
+										<span className="text-slate-400 text-xs"> (for {model.requested})</span>
+									)}
 								</td>
 								<td className="px-3 py-2">{row.api_key}</td>
 								<td className="px-3 py-2">

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { modelDisplay } from "../lib/modelDisplay.js";
 import { useDebug } from "../hooks/useDebug.js";
 import { useAnnotations } from "../hooks/useAnnotations.js";
 import { useExport } from "../hooks/useExport.js";
@@ -414,10 +415,15 @@ export default function DetailDrawer({ requestId, usage, onClose }) {
 								<strong>Provider:</strong> {u.provider}
 							</p>
 							<p>
-								<strong>Model:</strong> {u.canonical_model_name}
+								<strong>Requested:</strong> {u.incoming_model_alias || u.canonical_model_name}
 							</p>
 							<p>
-								<strong>Selected model:</strong> {u.selected_model_name}
+								<strong>Target:</strong> {u.canonical_model_name}
+							</p>
+							<p>
+								<strong>Served by:</strong>{" "}
+								{u.final_attempt_provider ? `${u.final_attempt_provider} / ` : ""}
+								{modelDisplay(u).served}
 							</p>
 							<p>
 								<strong>Status:</strong> {u.response_status}
