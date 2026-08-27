@@ -14,7 +14,9 @@ Spec: `docs/superpowers/specs/2026-08-27-provider-report-design.md`
 
 ## File Structure
 
-- Create `services/providerReport.js` — pure: constants, `analyzeResponse`, `buildReportDoc`, `rawFilesForRequest`. No fs/pg/network imports (fully unit-testable).
+- Create `services/providerReport.js` (~300 lines when done) — pure: constants, `analyzeResponse`, `buildReportDoc`, `rawFilesForRequest`, `formatReportFilename`. No fs/pg/network imports (fully unit-testable).
+- Create `src/components/RetryChainPanel.jsx` (Task 0) — `RetryChain` extracted from DetailDrawer to clear the >500-line violation.
+- Modify `src/components/DetailDrawer.jsx` — drop extracted code (545 → under 500).
 - Modify `services/zipExporter.js` — add `createProviderReportBundle({ reportMd, rawFiles }, outPath)`.
 - Create `routes/reports.js` — POST create, GET `/:id` download, GET `/` list.
 - Modify `db/migrate.js` — add `provider_reports` table (+index).
@@ -26,6 +28,58 @@ Spec: `docs/superpowers/specs/2026-08-27-provider-report-design.md`
 - Tests: `tests/backend/providerReport.test.js`, `tests/backend/zipProviderReport.test.js`, `tests/backend/reports.test.js` (extend `zipExporter.test.js` pattern).
 
 Vitest runs all tests in a `jsdom` environment (see `vite.config.js` → `test.environment: 'jsdom'`); the backend tests here don't touch DOM APIs so they work as-is. No `.env` exists in the repo and the committed suite runs bare, so run tests with plain `npx vitest run <file>` (no env prefix).
+
+**Hard repo rule: no source file may exceed 500 lines.** Every file this plan creates is sized to stay well under it. The plan therefore splits work across focused modules instead of one big `providerReport.js`, and Task 0 clears the existing violation (`DetailDrawer.jsx`, 545 lines) before any feature work. Check at any time with:
+
+```bash
+find . -path ./node_modules -prune -o -path ./.git -prune -o -path ./dist -prune -o -path ./docs -prune -o -type f \( -name '*.js' -o -name '*.jsx' \) -print | xargs wc -l | sort -rn | head
+```
+
+---
+
+## Task 0: Clear the existing >500-line violation (DetailDrawer split)
+
+Pure refactor — move code, change nothing behavioral. The existing test suite is the safety net (no new test: TDD's "failing test first" governs new behavior; a move-only refactor stays green throughout).
+
+**Files:**
+- Create: `src/components/RetryChainPanel.jsx`
+- Modify: `src/components/DetailDrawer.jsx`
+
+- [ ] **Step 1: Move `RetryChain` out of DetailDrawer**
+
+Cut the whole `function RetryChain({ ... }) { ... }` (DetailDrawer.jsx lines 254-338) into a new file `src/components/RetryChainPanel.jsx` starting with:
+
+```jsx
+export default function RetryChain({
+	retryHistory,
+	attemptCount,
+	finalProvider,
+	finalModel,
+	allProviders,
+}) {
+	<paste the existing body verbatim — no edits>
+}
+```
+
+In `DetailDrawer.jsx`, replace the cut block with:
+
+```jsx
+import RetryChain from "./RetryChainPanel.jsx";
+```
+
+(add alongside the other imports at the top)
+
+- [ ] **Step 2: Verify size + green**
+
+Run: `wc -l src/components/DetailDrawer.jsx src/components/RetryChainPanel.jsx && npx vitest run 2>&1 | tail -4 && npm run build 2>&1 | tail -2`
+Expected: DetailDrawer under 500 lines; 24 tests pass; `✓ built`.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/components/RetryChainPanel.jsx src/components/DetailDrawer.jsx
+git commit -m "refactor: extract RetryChain into its own file (keep files under 500 lines)"
+```
 
 ---
 
