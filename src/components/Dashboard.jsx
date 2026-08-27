@@ -4,12 +4,21 @@ import RequestTable from "./RequestTable.jsx";
 import DetailDrawer from "./DetailDrawer.jsx";
 import ExportModal from "./ExportModal.jsx";
 import { useRequests } from "../hooks/useRequests.js";
+import { reportsApi, downloadReport } from "../lib/api.js";
+import {
+	MAX_REPORT_REQUESTS,
+	MAX_NOTES_CHARS,
+} from "../../services/providerReport.js";
 
 export default function Dashboard() {
 	const [filters, setFilters] = useState({});
 	const [selected, setSelected] = useState(new Set());
 	const [detailRow, setDetailRow] = useState(null);
 	const [showExport, setShowExport] = useState(false);
+	const [showReport, setShowReport] = useState(false);
+	const [reportNotes, setReportNotes] = useState("");
+	const [reportBusy, setReportBusy] = useState(false);
+	const [reportError, setReportError] = useState(null);
 
 	const { rows, loading, error, loadMore, hasMore } = useRequests(filters);
 
@@ -47,6 +56,24 @@ export default function Dashboard() {
 		[filteredRows],
 	);
 
+	const overCap = selected.size > MAX_REPORT_REQUESTS;
+
+	async function createReport() {
+		if (overCap) return;
+		setReportBusy(true);
+		setReportError(null);
+		try {
+			const res = await reportsApi.create(Array.from(selected), reportNotes);
+			await downloadReport(res.reportId);
+			setShowReport(false);
+			setReportNotes("");
+		} catch (err) {
+			setReportError(err.message);
+		} finally {
+			setReportBusy(false);
+		}
+	}
+
 	return (
 		<div>
 			<FilterPanel onFilter={setFilters} />
@@ -67,6 +94,21 @@ export default function Dashboard() {
 						onClick={() => setShowExport(true)}
 					>
 						Export {selected.size} selected
+					</button>
+					<button
+						className="bg-indigo-700 text-white px-3 py-1 rounded text-sm hover:bg-indigo-800 disabled:opacity-50"
+						disabled={selected.size === 0 || overCap}
+						onClick={() => {
+							setShowReport(true);
+							setReportError(null);
+						}}
+						title={
+							overCap
+								? `Select at most ${MAX_REPORT_REQUESTS} requests`
+								: `Build a provider evidence report from ${selected.size} selected request(s)`
+						}
+					>
+						Provider report ({selected.size})
 					</button>
 					{filteredRows.length > 0 && selected.size !== filteredRows.length && (
 						<button
@@ -111,6 +153,56 @@ export default function Dashboard() {
 					requestIds={Array.from(selected)}
 					onClose={() => setShowExport(false)}
 				/>
+			)}
+			{showReport && (
+				<div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+					<div className="bg-white rounded-lg shadow p-4 w-[520px] max-w-[92vw]">
+						<h3 className="font-bold mb-2">
+							Provider report — {selected.size} request(s)
+						</h3>
+						<label
+							className="block text-sm font-medium mb-1"
+							htmlFor="dash-report-notes"
+						>
+							Summary notes
+						</label>
+						<textarea
+							id="dash-report-notes"
+							rows={5}
+							maxLength={MAX_NOTES_CHARS}
+							className="border rounded px-2 py-1 w-full"
+							placeholder="What went wrong; what you want the provider to check."
+							value={reportNotes}
+							onChange={(e) => setReportNotes(e.target.value)}
+						/>
+						<div className="text-xs text-slate-500 mt-1">
+							{reportNotes.length} / {MAX_NOTES_CHARS}
+						</div>
+						{reportError && (
+							<div
+								role="alert"
+								className="bg-red-100 text-red-800 p-2 rounded text-sm mt-2"
+							>
+								{reportError}
+							</div>
+						)}
+						<div className="flex justify-end gap-2 mt-3">
+							<button
+								className="px-3 py-1 rounded border text-sm"
+								onClick={() => setShowReport(false)}
+							>
+								Cancel
+							</button>
+							<button
+								className="bg-indigo-700 text-white px-3 py-1 rounded text-sm disabled:opacity-50"
+								disabled={reportBusy || selected.size === 0 || overCap}
+								onClick={createReport}
+							>
+								{reportBusy ? "Creating…" : "Create & Download"}
+							</button>
+						</div>
+					</div>
+				</div>
 			)}
 		</div>
 	);
