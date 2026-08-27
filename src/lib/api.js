@@ -70,6 +70,28 @@ export async function downloadExport(exportId) {
   window.URL.revokeObjectURL(url);
 }
 
+export const reportsApi = {
+  create: (requestIds, notes) => api('/reports', {
+    method: 'POST',
+    body: JSON.stringify({ requestIds, notes }),
+  }),
+  history: () => api('/reports'),
+};
+
+export async function downloadReport(reportId) {
+  const res = await fetch(`/api/reports/${reportId}`, {
+    headers: { 'Authorization': `Bearer ${getAdminKey()}` },
+  });
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `provider-report-${reportId}.zip`;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
 export const annotationsApi = {
   list: (params) => {
     const qs = new URLSearchParams(params).toString();

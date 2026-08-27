@@ -10,6 +10,7 @@ import exportRouter from './routes/export.js';
 import annotationsRouter from './routes/annotations.js';
 import filtersRouter from './routes/filters.js';
 import healthRouter from './routes/health.js';
+import reportsRouter from './routes/reports.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,7 @@ app.use('/api/requests', requestsRouter);
 app.use('/api/debug', debugRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/annotations', annotationsRouter);
+app.use('/api/reports', reportsRouter);
 
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get('*', (req, res, next) => {
