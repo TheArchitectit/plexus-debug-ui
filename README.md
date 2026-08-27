@@ -86,6 +86,7 @@ Discovered against Plexus v1.x management routes:
 - **`/v0/management/errors` silently ignores `?requestId=`.** It only supports `limit`/`offset` and returns the global latest-N errors. `plexusApi.listErrors(requestId)` fetches the recent 500-error window and filters client-side, so errors that aged out of the window are unavailable.
 - **Debug payloads are large.** A single `GET /v0/management/debug/logs/:requestId` response can be 1.5+ MB (a full LLM `rawRequest`); code handling it must tolerate large strings.
 - **Summary/Retries in the drawer come from the usage row the user clicked**, not from a detail fetch, because of the missing single-usage endpoint.
+- **Date params are brittle.** `total` comes back as a string. A plain `?dateFrom=YYYY-MM-DD` returns 0 matches on live data — use a full ISO timestamp (`?dateFrom=2026-08-27T20:00:00Z`). Report criteria pass user-picked dates through as-is; the preview shows the resulting count so mismatches are visible immediately.
 - **Model filtering matches `incomingModelAlias`, not the canonical name.** The `plexusApi.buildQuery` maps the UI's `model` filter to `?incomingModelAlias=`; a `canonicalModelName=` param is silently ignored (returns all rows). So `/api/filters` builds its model dropdown from `incoming_model_alias` — offering the canonical name instead would silently drop every request Plexus routed under a different alias (`routes/filters.js`).
 
 ### Client-side filtering
