@@ -9,6 +9,8 @@ import {
 	buildReportDoc,
 	rawFilesForRequest,
 	formatReportFilename,
+	resolveRequestIds,
+	TooManyMatchesError,
 	MAX_REPORT_REQUESTS,
 	MAX_NOTES_CHARS,
 } from "../services/providerReport.js";
@@ -43,18 +45,28 @@ async function assemble(requestId) {
 router.post(
 	"/",
 	asyncHandler(async (req, res) => {
-		const { requestIds, notes = "" } = req.body || {};
-		if (!Array.isArray(requestIds) || requestIds.length === 0) {
-			return res.status(400).json({ error: "requestIds array required" });
+		const { requestIds, filters, notes = "" } = req.body || {};
+		let ids = requestIds;
+		if (filters && typeof filters === "object" && !Array.isArray(filters)) {
+			// Criteria-driven report: resolve the matching request ids first.
+			try {
+				ids = await resolveRequestIds(filters, { listUsage: (f) => plexusApi.listUsage(f) });
+			} catch (err) {
+				if (err instanceof TooManyMatchesError) return res.status(400).json({ error: err.message });
+				return res.status(400).json({ error: err.message });
+			}
 		}
-		if (requestIds.length > MAX_REPORT_REQUESTS) {
+		if (!Array.isArray(ids) || ids.length === 0) {
+			return res.status(400).json({ error: "No requests match these criteria" });
+		}
+		if (ids.length > MAX_REPORT_REQUESTS) {
 			return res.status(400).json({ error: `Maximum ${MAX_REPORT_REQUESTS} requests per report` });
 		}
 		if (typeof notes !== "string" || notes.length > MAX_NOTES_CHARS) {
 			return res.status(400).json({ error: `Notes must be under ${MAX_NOTES_CHARS} characters` });
 		}
 
-		const assembled = await Promise.all(requestIds.map(assemble));
+		const assembled = await Promise.all(ids.map(assemble));
 		const usable = assembled.filter((r) => r.resolved);
 		if (usable.length === 0) {
 			return res.status(400).json({ error: "No matching requests (no usage or debug found)" });
@@ -79,6 +91,23 @@ router.post(
 			downloadUrl: `/api/reports/${row.id}`,
 			fileSize: bundle.fileSize,
 		});
+	}),
+);
+
+// Live criteria match-count preview for the Reports form (never generates files).
+router.get(
+	"/preview",
+	asyncHandler(async (req, res) => {
+		const filters = { ...req.query };
+		try {
+			const preview = await resolveRequestIds(filters, {
+				listUsage: (f) => plexusApi.listUsage(f),
+				countOnly: true,
+			});
+			res.json(preview);
+		} catch (err) {
+			res.status(400).json({ error: err.message });
+		}
 	}),
 );
 

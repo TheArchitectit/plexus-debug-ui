@@ -15,7 +15,7 @@ A containerized web application for inspecting and exporting debug bundles from 
 - **Debug bundle export** — select multiple requests and generate a ZIP bundle with metadata, raw payloads, and an HTML overview report
 - **Annotations** — tag and note requests for later reference
 - **Export history** — track previously generated bundles
-- **Provider report** — select requests and generate a provider-facing evidence ZIP (`report.md` + byte-exact raw SSE streams) with free-text notes; re-downloadable from a Reports history
+- **Provider report** — from the **Reports** tab, set filter criteria (provider, model, API key, status, finish reason, errors, retries, date range) and generate a provider-facing evidence ZIP (`report.md` + byte-exact raw SSE streams) with free-text notes; live match-count preview; re-downloadable history
 
 ## Architecture
 
@@ -132,10 +132,11 @@ Select rows via checkboxes, then click "Export N selected" to generate a ZIP bun
 
 ### Reports
 
-Provider-facing evidence packets. Open the **Reports** tab (or select rows on the Dashboard and click **Provider report**) to build one:
+Provider-facing evidence packets. Open the **Reports** tab (a main nav tab) to build one from filter **criteria**:
 
-- **Request IDs** textarea (Reports tab) or current selection (Dashboard button) — up to 100 requests per report, enforced client-side and re-validated server-side.
-- **Summary notes** — free text, up to 4000 characters, becomes the `report.md` Summary section. Live `n / 4000` counter; tooltips on both fields explain the caps.
+- **Criteria form** — provider, model, API key, status, finish reason, has-error, retried, and date range. At least one criterion is required; the same values the Dashboard filters use are sent to the management API (`hasError`/`hasRetry` post-filtered client-side, matching the API's actual behavior).
+- **Live match preview** — as you tune criteria, a debounced `GET /api/reports/preview` shows how many requests match. Over the 100-request cap the count turns red, warns to narrow the criteria, and blocks creation (re-validated server-side).
+- **Summary notes** — free text, up to 4000 characters, becomes the `report.md` Summary section. Live `n / 4000` counter; tooltip explains the cap.
 
 The ZIP contains `report.md` (notes + a per-request table + per-request sections with reassembled assistant/reasoning text, tool calls, and the first 500 lines of the raw SSE) plus `raw/<id>_response.sse` (byte-exact full stream) and `raw/<id>_request.json` when Plexus stored the request. Requests whose payload was never captured are marked explicitly rather than dropped. Report history is re-downloadable.
 
@@ -160,7 +161,8 @@ The app creates these tables on startup via `db/migrate.js`:
 | POST | `/api/export` | Generate ZIP bundle from request IDs |
 | GET | `/api/export/:exportId` | Download bundle |
 | GET | `/api/export` | Export history list |
-| POST | `/api/reports` | Generate provider evidence report ZIP from request IDs + notes |
+| POST | `/api/reports` | Generate provider evidence report ZIP from `{filters}` (or `{requestIds}`) + notes |
+| GET | `/api/reports/preview` | Live match count for report criteria (`{count, overLimit, ids}`) |
 | GET | `/api/reports/:id` | Download provider report |
 | GET | `/api/reports` | Provider report history list |
 | GET/POST | `/api/annotations` | CRUD annotations |
@@ -213,7 +215,7 @@ For production:
 
 ### v0.3.0 — Provider Reports
 
-- New **Reports** tab: build a provider-facing evidence ZIP from selected/pasted request IDs plus summary notes
+- New **Reports** tab: build a provider-facing evidence ZIP from filter criteria (provider, model, status, date range, errors, retries…) plus summary notes, with a live match-count preview and hard 100-request cap
 - `report.md` reassembles the model's actual output (OpenAI SSE and Anthropic snapshot formats), with the byte-exact raw stream shipped separately in `raw/<id>_response.sse`
 - Reports history with re-download; per-request sections for the "payload not stored" case
 - Input caps (100 requests, 4000-char notes) enforced in the UI with guidance tooltips and re-validated server-side; "Provider report" button on the Dashboard for the current selection

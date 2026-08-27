@@ -212,6 +212,53 @@ export function buildReportDoc(requests, notes = '') {
   return L.join('\n');
 }
 
+// Which usage-API params we can send server-side vs. post-filter client-side
+// (the management API ignores hasError/hasRetry entirely).
+const SERVER_FILTER_KEYS = ['provider', 'model', 'apiKey', 'status', 'dateFrom', 'dateTo', 'finishReason'];
+
+export class TooManyMatchesError extends Error {
+  constructor(max) {
+    super(`Criteria match too many requests (${max}+ of a max ${max} per report) — narrow the filters`);
+    this.name = 'TooManyMatchesError';
+    this.code = 'TOO_MANY_MATCHES';
+  }
+}
+
+function serverFilters(filters) {
+  const out = {};
+  for (const k of SERVER_FILTER_KEYS) {
+    if (filters[k]) out[k] = filters[k];
+  }
+  return out;
+}
+
+function postFilter(rows, filters) {
+  let r = rows;
+  if (filters.hasError === 'true') r = r.filter((x) => x.has_error);
+  else if (filters.hasError === 'false') r = r.filter((x) => !x.has_error);
+  if (filters.hasRetry === 'true') r = r.filter((x) => Number(x.attempt_count) > 1);
+  else if (filters.hasRetry === 'false') r = r.filter((x) => Number(x.attempt_count) <= 1);
+  return r;
+}
+
+// Resolve report criteria to concrete request IDs. Fetches one page capped at
+// MAX_REPORT_REQUESTS+1 — a full page means the criteria are too broad.
+// listUsage is injected so this module stays side-effect-free.
+// countOnly (preview mode): never throws on the cap; returns {count, overLimit, ids}.
+export async function resolveRequestIds(filters = {}, { listUsage, countOnly = false }) {
+  if (!Object.values(filters).some((v) => v !== '' && v != null)) {
+    throw new Error('At least one filter criterion is required — reports are built from criteria, not an empty filter set');
+  }
+  const res = await listUsage({ ...serverFilters(filters), limit: MAX_REPORT_REQUESTS + 1 });
+  const rows = postFilter(res.data || [], filters);
+  const overLimit = (res.total ?? 0) > MAX_REPORT_REQUESTS || rows.length > MAX_REPORT_REQUESTS;
+  if (overLimit && !countOnly) throw new TooManyMatchesError(MAX_REPORT_REQUESTS);
+  if (countOnly) {
+    return { count: res.total ?? rows.length, overLimit, ids: rows.map((r) => r.request_id) };
+  }
+  return rows.map((r) => r.request_id);
+}
+
 export function rawFilesForRequest(request) {
   const safeId = sanitizeId(request.request_id);
   const files = {};

@@ -74,6 +74,56 @@ describe('POST /api/reports', () => {
     } finally { server.close(); }
   });
 
+  it('resolves filters to request ids via listUsage and builds the report', async () => {
+    // Criteria page: two rows for provider=neuralwatt
+    plexusApi.listUsage.mockImplementation(async (f) =>
+      f.requestId
+        ? { data: [{ request_id: f.requestId, provider: 'neuralwatt', date: '2026-08-27T15:00:00Z' }], total: 1 }
+        : { data: [
+            { request_id: 'c1', provider: 'neuralwatt', has_error: false, attempt_count: 1 },
+            { request_id: 'c2', provider: 'neuralwatt', has_error: false, attempt_count: 1 },
+          ], total: 2 });
+    const { server, base } = await startApp();
+    try {
+      const r = await fetch(base + '/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filters: { provider: 'neuralwatt', dateFrom: '2026-08-27' }, notes: 'evidence' }) });
+      expect(r.status).toBe(201);
+      const criteriaCall = plexusApi.listUsage.mock.calls.find((c) => c[0] && c[0].provider === 'neuralwatt');
+      expect(criteriaCall[0]).toMatchObject({ provider: 'neuralwatt', dateFrom: '2026-08-27', limit: 101 });
+      const inserted = queryApp.mock.calls.find((c) => /INSERT INTO provider_reports/.test(c[0]))[1];
+      expect(inserted[2]).toEqual(['c1', 'c2']);
+    } finally { server.close(); }
+  });
+
+  it('400s with a narrow-filters hint when criteria match too many', async () => {
+    const rows = Array.from({ length: 101 }, (_, i) => ({ request_id: 'id' + i, provider: 'p' }));
+    plexusApi.listUsage.mockResolvedValue({ data: rows, total: 5000 });
+    const { server, base } = await startApp();
+    try {
+      const r = await fetch(base + '/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filters: { provider: 'p' } }) });
+      expect(r.status).toBe(400);
+      const body = await r.json();
+      expect(body.error).toMatch(/narrow the filters/i);
+    } finally { server.close(); }
+  });
+
+  it('400s when criteria match nothing', async () => {
+    plexusApi.listUsage.mockResolvedValue({ data: [], total: 0 });
+    const { server, base } = await startApp();
+    try {
+      const r = await fetch(base + '/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ filters: { provider: 'ghost' } }) });
+      expect(r.status).toBe(400);
+      expect((await r.json()).error).toMatch(/no requests match/i);
+    } finally { server.close(); }
+  });
+
+  it('400s when neither requestIds nor filters provided', async () => {
+    const { server, base } = await startApp();
+    try {
+      const r = await fetch(base + '/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notes: 'hi' }) });
+      expect(r.status).toBe(400);
+    } finally { server.close(); }
+  });
+
   it('writes a ZIP with report.md + raw sse and returns a downloadUrl', async () => {
     const { server, base } = await startApp();
     try {
@@ -91,6 +141,48 @@ describe('POST /api/reports', () => {
       expect(created[0]).toMatch(/^provider-report-neuralwatt-\d{8}-\d{6}\.zip$/);
       expect(await zipEntries(path.join(config.exportsDir, created[0]))).toEqual(
         expect.arrayContaining(['report.md', 'raw/a_response.sse']));
+    } finally { server.close(); }
+  });
+});
+
+describe('GET /api/reports/preview', () => {
+  beforeEach(() => {
+    queryApp.mockResolvedValue([]);
+    plexusApi.listUsage.mockResolvedValue({ data: [
+      { request_id: 'c1', provider: 'neuralwatt', has_error: true },
+      { request_id: 'c2', provider: 'neuralwatt', has_error: true },
+    ], total: 2 });
+  });
+
+  it('returns match count and ids for filter criteria', async () => {
+    const { server, base } = await startApp();
+    try {
+      const r = await fetch(base + '/preview?provider=neuralwatt&dateFrom=2026-08-27&hasError=true');
+      expect(r.status).toBe(200);
+      const body = await r.json();
+      expect(body).toEqual({ count: 2, overLimit: false, ids: ['c1', 'c2'] });
+      const f = plexusApi.listUsage.mock.calls.at(-1)[0];
+      expect(f).toMatchObject({ provider: 'neuralwatt', dateFrom: '2026-08-27', limit: 101 });
+      expect(f.hasError).toBeUndefined();
+    } finally { server.close(); }
+  });
+
+  it('flags overLimit when criteria exceed the cap', async () => {
+    plexusApi.listUsage.mockResolvedValue({ data: [{ request_id: 'x' }], total: 5000 });
+    const { server, base } = await startApp();
+    try {
+      const r = await fetch(base + '/preview?provider=big');
+      const body = await r.json();
+      expect(body.overLimit).toBe(true);
+      expect(body.count).toBe(5000);
+    } finally { server.close(); }
+  });
+
+  it('400s with no criteria', async () => {
+    const { server, base } = await startApp();
+    try {
+      const r = await fetch(base + '/preview');
+      expect(r.status).toBe(400);
     } finally { server.close(); }
   });
 });

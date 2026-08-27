@@ -7,6 +7,8 @@ import {
   buildReportDoc,
   rawFilesForRequest,
   formatReportFilename,
+  resolveRequestIds,
+  TooManyMatchesError,
 } from '../../services/providerReport.js';
 
 // Build an OpenAI-style SSE body from a list of delta objects.
@@ -183,6 +185,58 @@ describe('rawFilesForRequest', () => {
   it('sanitizes path separators in ids', () => {
     const files = rawFilesForRequest({ request_id: '../etc/passwd', analysis: { rawSse: 's' }, debug: {} });
     expect(Object.keys(files)).toEqual(['raw/__etc_passwd_response.sse']);
+  });
+});
+
+describe('resolveRequestIds', () => {
+  const usageRow = (id, extra) => ({ request_id: id, provider: 'neuralwatt', has_error: false, attempt_count: 1, ...extra });
+
+  it('maps UI filters to listUsage params and returns ids', async () => {
+    const calls = [];
+    const rows = [usageRow('x1', { has_error: true }), usageRow('x2', { has_error: true })];
+    const listUsage = async (f) => { calls.push(f); return { data: rows, total: 2 }; };
+    const ids = await resolveRequestIds(
+      { provider: 'neuralwatt', model: 'openclaw', dateFrom: '2026-08-27', dateTo: '2026-08-28', status: 'success', apiKey: 'k1', finishReason: 'stop', hasError: 'true', hasRetry: 'false' },
+      { listUsage },
+    );
+    expect(ids).toEqual(['x1', 'x2']);
+    expect(calls[0]).toMatchObject({
+      provider: 'neuralwatt', model: 'openclaw', dateFrom: '2026-08-27', dateTo: '2026-08-28',
+      status: 'success', apiKey: 'k1', finishReason: 'stop', limit: 101,
+    });
+    // hasError/hasRetry are client-side post-filters (API ignores them)
+    expect(calls[0].hasError).toBeUndefined();
+    expect(calls[0].hasRetry).toBeUndefined();
+  });
+
+  it('applies hasError/hasRetry post-filters to returned rows', async () => {
+    const rows = [
+      { request_id: 'e1', has_error: true, attempt_count: 3 },
+      { request_id: 'n1', has_error: false, attempt_count: 1 },
+    ];
+    const listUsage = async () => ({ data: rows, total: rows.length });
+    expect(await resolveRequestIds({ hasError: 'true' }, { listUsage })).toEqual(['e1']);
+    expect(await resolveRequestIds({ hasRetry: 'false' }, { listUsage })).toEqual(['n1']);
+    expect(await resolveRequestIds({ provider: 'p' }, { listUsage })).toEqual(['e1', 'n1']);
+  });
+
+  it('throws TooManyMatchesError when matches exceed the cap', async () => {
+    const rows = Array.from({ length: MAX_REPORT_REQUESTS + 1 }, (_, i) => usageRow('id' + i));
+    // total larger than cap: fails even before page contents matter
+    const listUsage = async () => ({ data: rows.slice(0, 100), total: 5000 });
+    await expect(resolveRequestIds({ provider: 'p' }, { listUsage }))
+      .rejects.toBeInstanceOf(TooManyMatchesError);
+    // fallback when total is absent: page length over cap also fails
+    const noTotal = async () => ({ data: rows });
+    await expect(resolveRequestIds({ provider: 'p' }, { listUsage: noTotal }))
+      .rejects.toBeInstanceOf(TooManyMatchesError);
+  });
+
+  it('throws when criteria are empty', async () => {
+    await expect(resolveRequestIds({}, { listUsage: async () => ({ data: [], total: 0 }) }))
+      .rejects.toThrow(/criteria/i);
+    await expect(resolveRequestIds({ provider: '' }, { listUsage: async () => ({ data: [], total: 0 }) }))
+      .rejects.toThrow(/criteria/i);
   });
 });
 

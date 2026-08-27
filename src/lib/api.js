@@ -71,11 +71,13 @@ export async function downloadExport(exportId) {
 }
 
 export const reportsApi = {
-  create: (requestIds, notes) => api('/reports', {
+  // payload: { filters } for criteria-based reports, { requestIds } for explicit ids; plus notes
+  create: (payload) => api('/reports', {
     method: 'POST',
-    body: JSON.stringify({ requestIds, notes }),
+    body: JSON.stringify(payload),
   }),
   history: () => api('/reports'),
+  preview: (filters) => api(`/reports/preview?${new URLSearchParams(filters)}`),
 };
 
 export async function downloadReport(reportId) {
