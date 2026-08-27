@@ -251,10 +251,12 @@ export async function resolveRequestIds(filters = {}, { listUsage, countOnly = f
   }
   const res = await listUsage({ ...serverFilters(filters), limit: MAX_REPORT_REQUESTS + 1 });
   const rows = postFilter(res.data || [], filters);
-  const overLimit = (res.total ?? 0) > MAX_REPORT_REQUESTS || rows.length > MAX_REPORT_REQUESTS;
+  // The live management API returns total as a string — normalize before comparing.
+  const total = Number(res.total ?? rows.length) || 0;
+  const overLimit = total > MAX_REPORT_REQUESTS || rows.length > MAX_REPORT_REQUESTS;
   if (overLimit && !countOnly) throw new TooManyMatchesError(MAX_REPORT_REQUESTS);
   if (countOnly) {
-    return { count: res.total ?? rows.length, overLimit, ids: rows.map((r) => r.request_id) };
+    return { count: total, overLimit, ids: rows.map((r) => r.request_id) };
   }
   return rows.map((r) => r.request_id);
 }

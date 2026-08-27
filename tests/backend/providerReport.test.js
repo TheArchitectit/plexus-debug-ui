@@ -232,6 +232,12 @@ describe('resolveRequestIds', () => {
       .rejects.toBeInstanceOf(TooManyMatchesError);
   });
 
+  it('handles string total from the live API in countOnly preview', async () => {
+    const listUsage = async () => ({ data: [usageRow('x1')], total: '643' });
+    const p = await resolveRequestIds({ provider: 'p' }, { listUsage, countOnly: true });
+    expect(p).toEqual({ count: 643, overLimit: true, ids: ['x1'] });
+  });
+
   it('throws when criteria are empty', async () => {
     await expect(resolveRequestIds({}, { listUsage: async () => ({ data: [], total: 0 }) }))
       .rejects.toThrow(/criteria/i);
