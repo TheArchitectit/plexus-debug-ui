@@ -85,6 +85,33 @@ describe('analyzeResponse', () => {
     expect(a.toolCalls).toEqual([{ id: 'tu_1', name: 'Bash', args: { cmd: 'ls' } }]);
   });
 
+  it('reassembles Anthropic-format SSE (content_block_delta / thinking_delta / text_delta)', () => {
+    const ev = (o) => 'event: ' + o._e + '\ndata: ' + JSON.stringify({ ...o, _e: undefined }) + '\n\n';
+    const stream = [
+      ev({ _e: 'message_start', type: 'message_start', message: { id: 'msg_1', model: 'deepseek-v4-pro', content: [], usage: { output_tokens: 0 } } }),
+      ev({ _e: 'content_block_start', type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } }),
+      ev({ _e: 'content_block_delta', type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'hmm ' } }),
+      ev({ _e: 'content_block_delta', type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'hard' } }),
+      ev({ _e: 'content_block_start', type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } }),
+      ev({ _e: 'content_block_delta', type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'the answer' } }),
+      ev({ _e: 'content_block_start', type: 'content_block_start', index: 2, content_block: { type: 'tool_use', id: 'tu_9', name: 'Bash' } }),
+      ev({ _e: 'content_block_delta', type: 'content_block_delta', index: 2, delta: { type: 'input_json_delta', partial_json: '{"cmd":' } }),
+      ev({ _e: 'content_block_delta', type: 'content_block_delta', index: 2, delta: { type: 'input_json_delta', partial_json: '"ls"}' } }),
+      ev({ _e: 'message_delta', type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 42 } }),
+      ev({ _e: 'message_stop', type: 'message_stop' }),
+    ].join('');
+    const a = analyzeResponse({ raw_response: stream });
+    expect(a.present).toBe(true);
+    expect(a.model).toBe('deepseek-v4-pro');
+    expect(a.responseId).toBe('msg_1');
+    expect(a.reasoningText).toBe('hmm hard');
+    expect(a.assistantText).toBe('the answer');
+    expect(a.finishReason).toBe('tool_use');
+    expect(a.toolCalls).toEqual([{ id: 'tu_9', name: 'Bash', args: { cmd: 'ls' } }]);
+    expect(a.rawSse).toBe(stream);
+    expect(a.chunks).toBeGreaterThanOrEqual(6);
+  });
+
   it('flags not-stored payloads', () => {
     const a = analyzeResponse(null);
     expect(a.present).toBe(false);
