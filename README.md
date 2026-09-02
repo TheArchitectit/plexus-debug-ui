@@ -1,5 +1,7 @@
 # Plexus Debug UI
 
+[![Sponsor](https://img.shields.io/badge/Sponsor-TheArchitectit-FF69B4?style=flat&logo=github-sponsors)](https://github.com/sponsors/TheArchitectit)
+
 A containerized web application for inspecting and exporting debug bundles from Plexus request logs. Connects to the Plexus management API and provides a web UI to filter, inspect, and export debug data.
 
 ## Features
